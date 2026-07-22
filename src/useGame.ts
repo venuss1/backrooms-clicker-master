@@ -1,0 +1,1030 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  LEVELS,
+  GENERATORS,
+  GEAR,
+  ENCOUNTERS,
+  FINALE,
+  PHENOMENA,
+  type Encounter,
+  type Phenomenon,
+  type Gear,
+  type GearSlot,
+} from './gameData';
+import { perkById, rollPerkChoices, type PerkKey } from './perks';
+import { rollEvent, type Expedition, type ExpeditionMode } from './expedition';
+import { sfx } from './sound';
+import { computeBonuses, canUnlockNode, skillNodeById, type SkillBonuses } from './skillTree';
+
+const SAVE_KEY = 'backrooms-clicker-save-v3';
+export const CRIT_MULT = 7;
+export const SLOTS: GearSlot[] = ['Weapon', 'Light', 'Armor', 'Trinket'];
+
+export interface Settings {
+  reduceMotion: boolean;
+  sound: boolean;
+}
+
+export interface ActiveBuff {
+  id: string;
+  name: string;
+  effect: string;
+  label: string;
+  until: number;
+}
+
+export interface ActiveEncounter {
+  id: string;
+  name: string;
+  desc: string;
+  boss: boolean;
+  isFinale: boolean;
+  need: number;
+  got: number;
+  until: number | null; // null = no timer (finale)
+  reward: number;
+}
+
+export interface Toast {
+  id: number;
+  kind: 'unlock' | 'achieve' | 'event' | 'win' | 'info' | 'loot' | 'prestige' | 'xp';
+  text: string;
+}
+
+export interface GameState {
+  aw: number;
+  totalAw: number; // this run
+  lifetimeAw: number; // across all prestiges
+  clicks: number;
+  generators: Record<string, number>;
+  gearOwned: string[];
+  equipped: Partial<Record<GearSlot, string>>;
+  levelIndex: number;
+  defeated: string[];
+  achievements: string[];
+  echoes: number; // unspent rebirth currency
+  totalEchoes: number; // total echoes ever earned (for display)
+  skills: Record<string, number>; // skill node id → ranks
+  prestiges: number;
+  finaleDefeated: boolean;
+  finaleAvailable: boolean;
+  settings: Settings;
+  buff: ActiveBuff | null;
+  encounter: ActiveEncounter | null;
+  playtime: number;
+  searchProgress: number; // scavenging effort toward next gear drop on this level
+  searchLevel: number; // level the search progress belongs to
+  xp: number; // progress toward next Explorer level
+  xpLevel: number; // Explorer level (persists through prestige)
+  perks: string[]; // chosen perk ids (stackable)
+  perkTokens: number; // unspent perk picks
+  pendingPerks: string[] | null; // current perk choices, or null
+  expedition: Expedition | null;
+  deepestAbyss: number; // deepest abyss room ever reached (permanent multiplier)
+  encounterCooldownUntil: number; // performance.now() timestamp; no encounters spawn before this
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  desc: string;
+  test: (s: GameState) => boolean;
+}
+
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first-click', name: 'You Noclipped In', desc: 'Make your first click.', test: (s) => s.clicks >= 1 },
+  { id: 'clicks-500', name: 'Wall Toucher', desc: 'Click 500 times.', test: (s) => s.clicks >= 500 },
+  { id: 'clicks-5000', name: 'Frantic Wanderer', desc: 'Click 5,000 times.', test: (s) => s.clicks >= 5000 },
+  { id: 'aw-10k', name: 'Hydrated', desc: 'Earn 10K Almond Water total.', test: (s) => s.lifetimeAw >= 10_000 },
+  { id: 'aw-10m', name: 'Flush With Fluid', desc: 'Earn 10M lifetime AW.', test: (s) => s.lifetimeAw >= 10_000_000 },
+  { id: 'aw-1b', name: 'Ocean of Almond', desc: 'Earn 1B lifetime AW.', test: (s) => s.lifetimeAw >= 1_000_000_000 },
+  { id: 'gen-1', name: 'Not Alone', desc: 'Recruit your first ally.', test: (s) => allyCount(s) >= 1 },
+  { id: 'gen-50', name: 'Building a Base', desc: 'Own 50 allies/outposts.', test: (s) => allyCount(s) >= 50 },
+  { id: 'gear-1', name: 'Kitted Out', desc: 'Equip your first item.', test: (s) => Object.keys(s.equipped).length >= 1 },
+  { id: 'gear-full', name: 'Fully Geared', desc: 'Fill all 4 equipment slots.', test: (s) => SLOTS.every((sl) => s.equipped[sl]) },
+  { id: 'gear-legendary', name: 'Legend', desc: 'Equip a legendary item.', test: (s) => Object.values(s.equipped).some((id) => GEAR.find((g) => g.id === id)?.rarity === 'legendary') },
+  { id: 'level-5', name: 'Going Deeper', desc: 'Reach depth 5.', test: (s) => s.levelIndex >= 5 },
+  { id: 'level-15', name: 'Lost For Good', desc: 'Reach depth 15.', test: (s) => s.levelIndex >= 15 },
+  { id: 'level-max', name: 'The Bottom', desc: 'Reach the deepest level.', test: (s) => s.levelIndex >= LEVELS.length - 1 },
+  { id: 'kill-10', name: 'Not Prey', desc: 'Escape 10 encounters.', test: (s) => s.defeated.length >= 10 },
+  { id: 'boss-1', name: 'Giant Slayer', desc: 'Defeat a boss.', test: (s) => s.defeated.some((d) => ENCOUNTERS.find((e) => e.id === d)?.boss) },
+  { id: 'finale', name: 'Escaped', desc: 'Defeat Nostalgi Gaius.', test: (s) => s.finaleDefeated },
+  { id: 'prestige-1', name: 'Round and Round', desc: 'Noclip Out once.', test: (s) => s.prestiges >= 1 },
+  { id: 'echoes-50', name: 'Echo Chamber', desc: 'Earn 50 Echoes total.', test: (s) => s.totalEchoes >= 50 },
+  { id: 'xp-5', name: 'Seasoned', desc: 'Reach Explorer level 5.', test: (s) => s.xpLevel >= 5 },
+  { id: 'xp-20', name: 'Veteran', desc: 'Reach Explorer level 20.', test: (s) => s.xpLevel >= 20 },
+  { id: 'perk-5', name: 'Specialist', desc: 'Choose 5 perks.', test: (s) => s.perks.length >= 5 },
+  { id: 'delve-1', name: 'Delver', desc: 'Extract from an expedition.', test: (s) => s.achievements.includes('delve-1') },
+  { id: 'abyss-10', name: 'Into the Abyss', desc: 'Reach Abyss room 10.', test: (s) => s.deepestAbyss >= 10 },
+];
+
+function freshState(): GameState {
+  return {
+    aw: 0,
+    totalAw: 0,
+    lifetimeAw: 0,
+    clicks: 0,
+    generators: {},
+    gearOwned: [],
+    equipped: {},
+    levelIndex: 0,
+    defeated: [],
+    achievements: [],
+    echoes: 0,
+    totalEchoes: 0,
+    skills: {},
+    prestiges: 0,
+    finaleDefeated: false,
+    finaleAvailable: false,
+    settings: { reduceMotion: false, sound: true },
+    buff: null,
+    encounter: null,
+    playtime: 0,
+    searchProgress: 0,
+    searchLevel: 0,
+    xp: 0,
+    xpLevel: 0,
+    perks: [],
+    perkTokens: 0,
+    pendingPerks: null,
+    expedition: null,
+    deepestAbyss: 0,
+    encounterCooldownUntil: 0,
+  };
+}
+
+function load(): GameState {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return freshState();
+    const s = JSON.parse(raw) as Partial<GameState>;
+    return {
+      ...freshState(),
+      ...s,
+      settings: { ...freshState().settings, ...(s.settings ?? {}) },
+      skills: s.skills ?? {},
+      buff: null,
+      encounter: null,
+      expedition: null,
+      pendingPerks: null,
+      encounterCooldownUntil: 0,
+    };
+  } catch {
+    return freshState();
+  }
+}
+
+// ---------- Derived stats ----------
+export function allyCount(s: GameState): number {
+  return Object.values(s.generators).reduce((a, b) => a + b, 0);
+}
+
+export function genCount(s: GameState, id: string): number {
+  return s.generators[id] ?? 0;
+}
+
+// Skill tree bonuses for the current state
+export function skillBonuses(s: GameState): SkillBonuses {
+  return computeBonuses(s.skills);
+}
+
+// Per-unit cost growth — adjusted by Architect "Efficiency" skill
+export function genCost(s: GameState, id: string): number {
+  const owned = genCount(s, id);
+  const g = GENERATORS.find((x) => x.id === id)!;
+  const growth = skillBonuses(s).allyCostGrowth;
+  return Math.ceil(g.baseCost * Math.pow(growth, owned));
+}
+
+export function levelMult(s: GameState): number {
+  return LEVELS[s.levelIndex]?.mult ?? 1;
+}
+
+// Levels 24+ require 1 rebirth, levels 31+ require 3 rebirths.
+// This gates deeper content behind the rebirth loop (NOT the skill tree).
+export function levelPrestigeGate(levelIndex: number): number {
+  if (levelIndex >= 31) return 3;
+  if (levelIndex >= 24) return 1;
+  return 0;
+}
+
+// ---------- Perks & Explorer XP ----------
+export function perkStat(s: GameState, key: PerkKey): number {
+  // Diminishing returns on duplicate perks: each extra copy adds 70% of the previous.
+  // n copies of a perk yield val * (1 - 0.7^n) / 0.3.
+  const counts: Record<string, number> = {};
+  for (const id of s.perks) {
+    const p = perkById(id);
+    if (p && p.key === key) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  let v = 0;
+  for (const [id, n] of Object.entries(counts)) {
+    const p = perkById(id);
+    if (!p) continue;
+    v += (p.val * (1 - Math.pow(0.7, n))) / 0.3;
+  }
+  return v;
+}
+
+// XP needed to go from level L to L+1 (steepens so higher levels are milestones)
+export function xpNeed(level: number): number {
+  return Math.floor(80 * Math.pow(1.25, level));
+}
+
+// Every Explorer level adds a small flat global boost on top of chosen perks
+export function xpLevelMult(s: GameState): number {
+  return 1 + s.xpLevel * 0.02;
+}
+
+// The Abyss: deepest room reached is a permanent multiplier, modified by Noclipper skills
+export function abyssMult(s: GameState): number {
+  const sb = skillBonuses(s);
+  return 1 + Math.min(sb.abyssCap, s.deepestAbyss) * sb.abyssRoomMult;
+}
+
+// Combined meta multiplier applied to both click power and production
+function metaMult(s: GameState): number {
+  const sb = skillBonuses(s);
+  return xpLevelMult(s) * (1 + perkStat(s, 'aw')) * abyssMult(s) * sb.awMult;
+}
+
+export function perkPct(s: GameState, key: PerkKey): number {
+  return perkStat(s, key);
+}
+
+function equippedGear(s: GameState): Gear[] {
+  return SLOTS.map((sl) => s.equipped[sl])
+    .filter((id): id is string => !!id)
+    .map((id) => GEAR.find((g) => g.id === id))
+    .filter((g): g is Gear => !!g);
+}
+
+export function gearClickMult(s: GameState): number {
+  const mult = skillBonuses(s).gearStatMult;
+  return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.clickMult - 1) * mult), 1);
+}
+export function gearProdMult(s: GameState): number {
+  const mult = skillBonuses(s).gearStatMult;
+  return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.prodMult - 1) * mult), 1);
+}
+export function gearLuck(s: GameState): number {
+  const sb = skillBonuses(s);
+  const buffLuck = s.buff?.effect === 'luck' ? 0.25 : 0;
+  return equippedGear(s).reduce((m, g) => m + g.stats.luck * sb.gearStatMult, 0) + buffLuck + perkStat(s, 'luck') + sb.luckAdd;
+}
+export function gearCrit(s: GameState): number {
+  const sb = skillBonuses(s);
+  return Math.min(0.75, equippedGear(s).reduce((m, g) => m + g.stats.crit * sb.gearStatMult, 0) + perkStat(s, 'crit') + sb.critAdd);
+}
+
+export function critMultVal(s: GameState): number {
+  return skillBonuses(s).critMult;
+}
+
+export function buffClickMult(s: GameState): number {
+  if (s.buff?.effect === 'clickX2') return 2;
+  if (s.buff?.effect === 'clickX3') return 3;
+  return 1;
+}
+export function buffProdMult(s: GameState): number {
+  if (s.buff?.effect === 'prodX2') return 2;
+  if (s.buff?.effect === 'prodX3') return 3;
+  return 1;
+}
+
+// Smooth, softcapped combo — rewards bursts, cap modified by Wanderer skills
+export function comboMult(combo: number, capBonus: number = 0): number {
+  return 1 + (1 - Math.exp(-combo / 30)) * (7 + capBonus);
+}
+
+export function baseClickPower(s: GameState): number {
+  const sb = skillBonuses(s);
+  return 1 * gearClickMult(s) * levelMult(s) * sb.clickMult * (1 + perkStat(s, 'click')) * metaMult(s);
+}
+
+export function clickPower(s: GameState, combo: number): number {
+  const sb = skillBonuses(s);
+  return baseClickPower(s) * comboMult(combo, sb.comboCapBonus) * buffClickMult(s);
+}
+
+export function productionPerSec(s: GameState): number {
+  const sb = skillBonuses(s);
+  let p = 0;
+  let ownedTypes = 0;
+  for (const g of GENERATORS) {
+    const n = genCount(s, g.id);
+    if (n > 0) { p += n * g.baseProd; ownedTypes++; }
+  }
+  const synergyMult = 1 + ownedTypes * sb.allySynergyPct;
+  const singularityMult = 1 + s.xpLevel * sb.prodXpLevelBonus;
+  return p * levelMult(s) * gearProdMult(s) * buffProdMult(s) * sb.prodMult * synergyMult * singularityMult * (1 + perkStat(s, 'prod')) * metaMult(s);
+}
+
+export function nextLevel(s: GameState) {
+  return LEVELS[s.levelIndex + 1] ?? null;
+}
+
+export function xpPct(s: GameState): number {
+  return Math.min(100, (s.xp / xpNeed(s.xpLevel)) * 100);
+}
+
+export function abyssUnlocked(s: GameState): boolean {
+  return s.finaleDefeated;
+}
+
+export function isMaxDepth(s: GameState): boolean {
+  return s.levelIndex >= LEVELS.length - 1;
+}
+
+// Echoes you'd gain by rebirthing now — cube root scaling, available early
+export function pendingEchoes(s: GameState): number {
+  const base = Math.floor(Math.cbrt(s.lifetimeAw / 1e5));
+  return Math.max(0, base - s.totalEchoes);
+}
+
+export function gearBySlot(slot: GearSlot): Gear[] {
+  return GEAR.filter((g) => g.slot === slot);
+}
+
+// Gear you can currently find (its drop level is at or above where you are, not yet owned)
+export function eligibleDrops(s: GameState): Gear[] {
+  return GEAR.filter((g) => g.dropLevel <= s.levelIndex && !s.gearOwned.includes(g.id));
+}
+
+// Effort (≈ seconds of active play) needed to scavenge the next drop on this level
+export function searchGoal(s: GameState): number {
+  let g = 14 + s.gearOwned.length * 2.5;
+  g = Math.min(g, 48);
+  g *= 1 - Math.min(0.5, gearLuck(s));
+  return g;
+}
+
+// ---------- Floating click numbers ----------
+export interface FloatNum {
+  id: number;
+  x: number;
+  y: number;
+  amount: number;
+  crit: boolean;
+}
+
+let floatId = 0;
+let toastId = 0;
+
+// Rarity weights for gear drops — rarer items are genuinely rare (industry standard 60/25/10/4/1,
+// slightly more generous for a single-player game with a finite pool).
+const RARITY_WEIGHTS: Record<string, number> = {
+  common: 50,
+  uncommon: 27,
+  rare: 15,
+  epic: 6,
+  legendary: 2,
+};
+
+// Rarity weights shifted by Noclipper "Lucky Streak" skill
+const RARITY_WEIGHTS_SHIFTED: Record<string, number> = {
+  common: 30,
+  uncommon: 27,
+  rare: 20,
+  epic: 12,
+  legendary: 6,
+};
+
+function weightedGearPick(pool: Gear[], rarityShift: number = 0): Gear {
+  const weights = rarityShift > 0 ? RARITY_WEIGHTS_SHIFTED : RARITY_WEIGHTS;
+  const weighted = pool.map((g) => ({ g, w: weights[g.rarity] ?? 1 }));
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const { g, w } of weighted) {
+    r -= w;
+    if (r <= 0) return g;
+  }
+  return weighted[weighted.length - 1].g;
+}
+
+export function useGame() {
+  const stateRef = useRef<GameState>(load());
+  const comboRef = useRef(0);
+  const lastClickRef = useRef(0);
+  const [, force] = useState(0);
+  const [floats, setFloats] = useState<FloatNum[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const rerender = useCallback(() => force((v) => v + 1), []);
+
+  const pushToast = useCallback((kind: Toast['kind'], text: string) => {
+    const id = ++toastId;
+    setToasts((t) => [...t.slice(-5), { id, kind, text }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4600);
+  }, []);
+
+  const grantGear = useCallback(
+    (reason: string) => {
+      const s = stateRef.current;
+      const pool = eligibleDrops(s);
+      if (pool.length === 0) return false;
+      // prefer gear native to the current depth, else anything eligible
+      const here = pool.filter((g) => g.dropLevel === s.levelIndex);
+      const from = here.length > 0 ? here : pool;
+      const pick = weightedGearPick(from, skillBonuses(s).rarityShift);
+      s.gearOwned.push(pick.id);
+      if (s.settings.sound) sfx.win();
+      pushToast('loot', `${reason}: found ${pick.name} (${pick.rarity})!`);
+      return true;
+    },
+    [pushToast],
+  );
+
+  const checkAchievements = useCallback(() => {
+    const s = stateRef.current;
+    for (const a of ACHIEVEMENTS) {
+      if (!s.achievements.includes(a.id) && a.test(s)) {
+        s.achievements.push(a.id);
+        if (s.settings.sound) sfx.unlock();
+        pushToast('achieve', `Achievement: ${a.name}`);
+      }
+    }
+  }, [pushToast]);
+
+  // Award Explorer XP; handles multiple level-ups and queues perk picks.
+  const gainXp = useCallback(
+    (amount: number) => {
+      const s = stateRef.current;
+      s.xp += amount * (1 + perkStat(s, 'xp'));
+      let leveled = false;
+      while (s.xp >= xpNeed(s.xpLevel)) {
+        s.xp -= xpNeed(s.xpLevel);
+        s.xpLevel += 1;
+        leveled = true;
+        if (s.xpLevel % 2 === 0) s.perkTokens += 1; // a perk pick every 2 levels
+      }
+      if (leveled) {
+        if (s.settings.sound) sfx.unlock();
+        pushToast('xp', `Explorer Level ${s.xpLevel}!`);
+        if (s.perkTokens > 0 && !s.pendingPerks) s.pendingPerks = rollPerkChoices(3);
+        checkAchievements();
+      }
+    },
+    [pushToast, checkAchievements],
+  );
+
+  const checkLevelUp = useCallback(() => {
+    const s = stateRef.current;
+    while (true) {
+      const nxt = LEVELS[s.levelIndex + 1];
+      if (nxt && s.totalAw >= nxt.unlockCost) {
+        // Gate deeper levels behind rebirth count (not the skill tree)
+        const gate = levelPrestigeGate(s.levelIndex + 1);
+        if (s.prestiges < gate) break;
+        s.levelIndex += 1;
+        if (s.settings.sound) sfx.descend();
+        pushToast('unlock', `Descended to ${nxt.name}`);
+        gainXp(20 + s.levelIndex * 6); // descents are big XP milestones
+      } else break;
+    }
+    if (isMaxDepth(s) && !s.finaleDefeated && !s.finaleAvailable) {
+      s.finaleAvailable = true;
+      pushToast('event', 'The deepest level hums. Nostalgi Gaius awaits...');
+    }
+    checkAchievements();
+  }, [pushToast, checkAchievements, gainXp]);
+
+  const choosePerk = useCallback(
+    (id: string) => {
+      const s = stateRef.current;
+      if (!s.pendingPerks || !s.pendingPerks.includes(id)) return;
+      const p = perkById(id);
+      if (!p) return;
+      s.perks.push(id);
+      s.perkTokens = Math.max(0, s.perkTokens - 1);
+      s.pendingPerks = s.perkTokens > 0 ? rollPerkChoices(3) : null;
+      if (s.settings.sound) sfx.buy();
+      pushToast('unlock', `Perk gained: ${p.name}`);
+      checkAchievements();
+      rerender();
+    },
+    [pushToast, checkAchievements, rerender],
+  );
+
+  const doClick = useCallback(
+    (clientX: number, clientY: number) => {
+      const s = stateRef.current;
+      const sb = skillBonuses(s);
+      const now = performance.now();
+      // Combo build speed (Frenzy skill) + phasing double-combo chance
+      let comboGain = 1 + perkStat(s, 'combo');
+      if (Math.random() < (s.skills['w-phasing'] ? 0.20 : 0)) comboGain *= 2;
+      if (now - lastClickRef.current < sb.comboDecayMs) comboRef.current += comboGain * sb.comboBuildMult;
+      else comboRef.current = 1;
+      lastClickRef.current = now;
+
+      let power = clickPower(s, comboRef.current);
+      const isCrit = Math.random() < gearCrit(s);
+      if (isCrit) power *= sb.critMult;
+
+      // Transcendence: clicking also grants a fraction of per-second production
+      if (sb.clickGainsProdPct > 0) power += productionPerSec(s) * sb.clickGainsProdPct;
+
+      s.aw += power;
+      s.totalAw += power;
+      s.lifetimeAw += power;
+      s.clicks += 1;
+      s.searchProgress += 0.4 * sb.scavengeMult; // clicking speeds up scavenging
+      gainXp(0.6 * sb.xpMult);
+
+      if (s.settings.sound) sfx.click(comboRef.current);
+
+      const fid = ++floatId;
+      setFloats((f) => [...f.slice(-24), { id: fid, x: clientX, y: clientY, amount: power, crit: isCrit }]);
+      setTimeout(() => setFloats((f) => f.filter((x) => x.id !== fid)), 900);
+
+      checkLevelUp();
+      checkAchievements();
+      rerender();
+    },
+    [checkLevelUp, checkAchievements, rerender, gainXp],
+  );
+
+  const attackEncounter = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.encounter) return;
+    const sb = skillBonuses(s);
+    const now = performance.now();
+    if (now - lastClickRef.current < sb.comboDecayMs) comboRef.current += 1 * sb.comboBuildMult;
+    else comboRef.current = 1;
+    lastClickRef.current = now;
+    // stronger click = more hits on tough foes
+    const hit = 1 + Math.floor(gearCrit(s) * 4) + (Math.random() < gearCrit(s) ? 3 : 0);
+    s.encounter.got += hit;
+    if (s.settings.sound) sfx.click(comboRef.current);
+    if (s.encounter.got >= s.encounter.need) {
+      const enc = s.encounter;
+      s.aw += enc.reward;
+      s.totalAw += enc.reward;
+      s.lifetimeAw += enc.reward;
+      if (!s.defeated.includes(enc.id)) s.defeated.push(enc.id);
+      s.encounter = null;
+      if (s.settings.sound) sfx.win();
+      if (enc.isFinale) {
+        s.finaleDefeated = true;
+        s.finaleAvailable = false;
+        gainXp(200);
+        pushToast('prestige', `You escaped ${enc.name}! Noclip Out & the Abyss are unlocked.`);
+      } else {
+        pushToast('win', `Escaped ${enc.name}! +${Math.round(enc.reward)} AW`);
+        gainXp(enc.boss ? 45 : 14);
+        if (Math.random() < 0.35 + gearLuck(s)) grantGear('Loot');
+        // breather before the next encounter can spawn
+        s.encounterCooldownUntil = performance.now() + 45_000;
+      }
+      checkAchievements();
+      checkLevelUp();
+    }
+    rerender();
+  }, [pushToast, grantGear, checkAchievements, checkLevelUp, rerender, gainXp]);
+
+  const fleeEncounter = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.encounter) return;
+    if (s.encounter.isFinale) s.finaleAvailable = true;
+    s.encounter = null;
+    if (!s.finaleAvailable) s.encounterCooldownUntil = performance.now() + 45_000;
+    rerender();
+  }, [rerender]);
+
+  const startFinale = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.finaleAvailable || s.encounter) return;
+    const need = 120 + s.prestiges * 40;
+    const reward = Math.max(1e6, productionPerSec(s) * 120);
+    s.encounter = {
+      id: FINALE.id,
+      name: FINALE.name,
+      desc: FINALE.desc,
+      boss: true,
+      isFinale: true,
+      need,
+      got: 0,
+      until: null,
+      reward,
+    };
+    if (s.settings.sound) sfx.event();
+    pushToast('event', `FINALE: ${FINALE.name}!`);
+    rerender();
+  }, [pushToast, rerender]);
+
+  // ---------- Expeditions (push-your-luck delving for gear) ----------
+  const startExpedition = useCallback(
+    (mode: ExpeditionMode) => {
+      const s = stateRef.current;
+      if (s.expedition || s.encounter) return;
+      if (mode === 'abyss' && !s.finaleDefeated) return;
+      const sb = skillBonuses(s);
+      const baseRisk = (mode === 'abyss' ? 0.08 : 0.03) * sb.expeditionRiskMult;
+      s.expedition = {
+        mode,
+        depth: s.levelIndex,
+        room: 0,
+        haulAw: 0,
+        haulXp: 0,
+        haulGear: [],
+        risk: baseRisk,
+        event: rollEvent(0, mode),
+        phase: 'event',
+        over: 'active',
+        log: [],
+        lastText: mode === 'abyss' ? 'You step off the edge into the Abyss.' : 'You slip into the walls to explore.',
+      };
+      if (s.settings.sound) sfx.event();
+      pushToast('event', mode === 'abyss' ? 'Descending into the Abyss...' : 'Expedition started!');
+      rerender();
+    },
+    [pushToast, rerender],
+  );
+
+  const expeditionChoose = useCallback(
+    (optId: string) => {
+      const s = stateRef.current;
+      const exp = s.expedition;
+      if (!exp || exp.phase !== 'event') return;
+      const ev = exp.event;
+      const luck = gearLuck(s);
+      const expBonus = perkStat(s, 'expedition');
+      const roomN = exp.room + 1;
+      const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * skillBonuses(s).expeditionLootMult;
+      const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus))); };
+
+      const grantExpGear = (): string | null => {
+        const owned = new Set([...s.gearOwned, ...exp.haulGear]);
+        const sb = skillBonuses(s);
+        let pool = GEAR.filter((g) => !owned.has(g.id) && (sb.expeditionAnyDepth || exp.mode === 'abyss' || g.dropLevel <= exp.depth));
+        if (pool.length === 0) pool = GEAR.filter((g) => !owned.has(g.id));
+        if (pool.length === 0) return null;
+        const pk = weightedGearPick(pool, skillBonuses(s).rarityShift);
+        exp.haulGear.push(pk.id);
+        return pk.name.replace(/^Object \d+ - /, '').replace(/["“”']/g, '');
+      };
+
+      const caught = (text: string) => {
+        exp.over = 'caught';
+        exp.phase = 'done';
+        exp.lastText = text;
+        if (s.settings.sound) sfx.event();
+      };
+
+      let text = '';
+      if (ev.kind === 'cache') {
+        if (optId === 'open') {
+          const aw = base * 1.2;
+          exp.haulAw += aw; exp.haulXp += 8 * roomN; addRisk(0.02);
+          const g = Math.random() < 0.42 + luck ? grantExpGear() : null;
+          text = `Pried the cache: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
+        } else {
+          const aw = base * 0.5;
+          exp.haulAw += aw; exp.haulXp += 5 * roomN;
+          text = `Searched carefully: +${Math.round(aw)} AW (no risk)`;
+        }
+      } else if (ev.kind === 'entity') {
+        if (optId === 'fight') {
+          const win = Math.random() < Math.max(0.15, Math.min(0.92, 0.45 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.02));
+          if (win) {
+            const aw = base * 1.7;
+            exp.haulAw += aw; exp.haulXp += 15 * roomN;
+            const g = Math.random() < 0.55 + luck ? grantExpGear() : null;
+            text = `Slew ${ev.name}: +${Math.round(aw)} AW${g ? `, dropped ${g}!` : ''}`;
+          } else {
+            caught(`${ev.name} overwhelmed you — your haul is lost.`);
+          }
+        } else if (optId === 'sneak') {
+          const ok = Math.random() < Math.max(0.1, Math.min(0.9, 0.42 + luck + expBonus * 0.3 - exp.room * 0.03));
+          if (ok) {
+            const aw = base * 0.3; exp.haulAw += aw; exp.haulXp += 6 * roomN;
+            text = `Slipped past ${ev.name}: +${Math.round(aw)} AW`;
+          } else {
+            addRisk(0.16);
+            text = `${ev.name} caught your scent — risk rising!`;
+          }
+        } else {
+          const cost = exp.haulAw * 0.4;
+          exp.haulAw -= cost; addRisk(-0.06);
+          text = `Bought passage from ${ev.name} for ${Math.round(cost)} AW`;
+        }
+      } else if (ev.kind === 'fork') {
+        if (Math.random() < 0.6) {
+          const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN;
+          const g = Math.random() < 0.3 + luck ? grantExpGear() : null;
+          text = `The passage opened up: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
+        } else {
+          const loss = exp.haulAw * 0.3; exp.haulAw -= loss; addRisk(0.1);
+          text = `A trap! Lost ${Math.round(loss)} AW and drew attention.`;
+        }
+      } else {
+        // shrine
+        if (optId === 'attune') {
+          exp.haulXp += 22 * roomN;
+          const aw = base * 0.6; exp.haulAw += aw;
+          text = `Attuned to ${ev.name}: +${22 * roomN} XP, +${Math.round(aw)} AW`;
+        } else {
+          if (Math.random() < 0.55) {
+            const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN;
+            const g = Math.random() < 0.5 + luck ? grantExpGear() : null;
+            text = `Harvested ${ev.name}: +${Math.round(aw)} AW${g ? `, tore loose ${g}!` : ''}`;
+          } else {
+            addRisk(0.2);
+            text = `${ev.name} lashed out — risk surges!`;
+          }
+        }
+      }
+
+      if (exp.over === 'active') {
+        exp.phase = 'choice';
+        exp.lastText = text;
+        if (s.settings.sound) sfx.buy();
+      }
+      exp.log = [...exp.log, text].slice(-5);
+      rerender();
+    },
+    [rerender],
+  );
+
+  const expeditionDeeper = useCallback(() => {
+    const s = stateRef.current;
+    const exp = s.expedition;
+    if (!exp || exp.phase !== 'choice') return;
+    // ambush check — the deeper you push, the likelier you're caught
+    if (Math.random() < exp.risk) {
+      exp.over = 'caught';
+      exp.phase = 'done';
+      exp.lastText = 'An ambush! You were caught — the haul is gone.';
+      if (s.settings.sound) sfx.event();
+      rerender();
+      return;
+    }
+    exp.room += 1;
+    if (exp.mode === 'abyss' && exp.room > s.deepestAbyss) {
+      s.deepestAbyss = exp.room;
+      checkAchievements();
+    }
+    exp.risk = Math.min(0.9, exp.risk + (exp.mode === 'abyss' ? 0.04 : 0.025) * skillBonuses(s).expeditionRiskMult * (1 - Math.min(0.6, perkStat(s, 'expedition'))));
+    exp.event = rollEvent(exp.room, exp.mode);
+    exp.phase = 'event';
+    if (s.settings.sound) sfx.descend();
+    rerender();
+  }, [checkAchievements, rerender]);
+
+  const expeditionExtract = useCallback(() => {
+    const s = stateRef.current;
+    const exp = s.expedition;
+    if (!exp || exp.phase !== 'choice') return;
+    s.aw += exp.haulAw;
+    s.totalAw += exp.haulAw;
+    s.lifetimeAw += exp.haulAw;
+    for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
+    gainXp(exp.haulXp);
+    if (exp.mode === 'abyss' && exp.room > s.deepestAbyss) s.deepestAbyss = exp.room;
+    if (!s.achievements.includes('delve-1')) {
+      s.achievements.push('delve-1');
+      pushToast('achieve', 'Achievement: Delver');
+    }
+    exp.over = 'extracted';
+    exp.phase = 'done';
+    exp.lastText = `Extracted: +${Math.round(exp.haulAw)} AW, +${Math.round(exp.haulXp)} XP, ${exp.haulGear.length} gear.`;
+    if (s.settings.sound) sfx.win();
+    pushToast('loot', `Extracted haul: +${Math.round(exp.haulAw)} AW, ${exp.haulGear.length} gear`);
+    checkAchievements();
+    rerender();
+  }, [pushToast, gainXp, checkAchievements, rerender]);
+
+  const expeditionClose = useCallback(() => {
+    const s = stateRef.current;
+    s.expedition = null;
+    rerender();
+  }, [rerender]);
+
+  const buyGenerator = useCallback(
+    (id: string) => {
+      const s = stateRef.current;
+      const owned = genCount(s, id);
+      const cost = genCost(s, id);
+      if (s.aw < cost) return;
+      s.aw -= cost;
+      s.generators[id] = owned + 1;
+      if (s.settings.sound) sfx.buy();
+      checkAchievements();
+      rerender();
+    },
+    [checkAchievements, rerender],
+  );
+
+  const equipGear = useCallback(
+    (id: string) => {
+      const s = stateRef.current;
+      const g = GEAR.find((x) => x.id === id);
+      if (!g || !s.gearOwned.includes(id)) return;
+      if (s.equipped[g.slot] === id) {
+        delete s.equipped[g.slot];
+      } else {
+        s.equipped[g.slot] = id;
+      }
+      if (s.settings.sound) sfx.equip();
+      checkAchievements();
+      rerender();
+    },
+    [checkAchievements, rerender],
+  );
+
+  const prestige = useCallback(() => {
+    const s = stateRef.current;
+    const gain = pendingEchoes(s);
+    if (gain <= 0) return;
+    s.echoes += gain;
+    s.totalEchoes += gain;
+    s.prestiges += 1;
+    // reset run progress; keep gear, echoes, skills, XP, perks, codex
+    s.aw = 0;
+    s.totalAw = 0;
+    s.generators = {};
+    s.levelIndex = 0;
+    s.buff = null;
+    s.encounter = null;
+    s.expedition = null;
+    s.finaleAvailable = false;
+    s.searchProgress = 0;
+    s.searchLevel = 0;
+    s.encounterCooldownUntil = 0;
+    comboRef.current = 0;
+    // XP, perks, Explorer level, deepest Abyss, skills all persist through rebirth
+    if (s.settings.sound) sfx.prestige();
+    pushToast('prestige', `Noclip Out! +${gain} Echoes (total ${s.totalEchoes})`);
+    checkAchievements();
+    rerender();
+  }, [pushToast, checkAchievements, rerender]);
+
+  const unlockSkill = useCallback((nodeId: string) => {
+    const s = stateRef.current;
+    const node = skillNodeById(nodeId);
+    if (!node) return;
+    if (!canUnlockNode(node, s.skills, s.echoes)) return;
+    s.echoes -= node.cost;
+    s.skills[nodeId] = (s.skills[nodeId] ?? 0) + 1;
+    if (s.settings.sound) sfx.win();
+    rerender();
+  }, [rerender]);
+
+  const toggleSetting = useCallback(
+    (key: keyof Settings) => {
+      const s = stateRef.current;
+      s.settings[key] = !s.settings[key];
+      rerender();
+    },
+    [rerender],
+  );
+
+  const hardReset = useCallback(() => {
+    stateRef.current = freshState();
+    comboRef.current = 0;
+    localStorage.removeItem(SAVE_KEY);
+    pushToast('info', 'Progress wiped. Back to Level 0.');
+    rerender();
+  }, [pushToast, rerender]);
+
+  useEffect(() => {
+    let last = performance.now();
+    let saveAccum = 0;
+    let eventAccum = 0;
+    const interval = setInterval(() => {
+      const s = stateRef.current;
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      s.playtime += dt;
+
+      const prod = productionPerSec(s);
+      if (prod > 0) {
+        const gain = prod * dt;
+        s.aw += gain;
+        s.totalAw += gain;
+        s.lifetimeAw += gain;
+        gainXp(dt * (1 + s.levelIndex * 0.4));
+        checkLevelUp();
+      }
+
+      // Scavenge for gear that drops on this level (found, never bought)
+      if (s.searchLevel !== s.levelIndex) {
+        s.searchLevel = s.levelIndex;
+        s.searchProgress = 0;
+      }
+      if (!s.encounter && eligibleDrops(s).length > 0) {
+        s.searchProgress += dt * skillBonuses(s).scavengeMult;
+        if (s.searchProgress >= searchGoal(s)) {
+          s.searchProgress = 0;
+          grantGear('Scavenged');
+          gainXp(12 + s.levelIndex * 4);
+          checkAchievements();
+        }
+      }
+
+      if (now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
+      if (s.buff && now > s.buff.until) s.buff = null;
+      if (s.encounter && s.encounter.until && now > s.encounter.until) {
+        pushToast('info', `${s.encounter.name} wandered off...`);
+        s.encounter = null;
+        // cooldown after an encounter ends so the player gets a breather
+        s.encounterCooldownUntil = now + 45_000;
+      }
+
+      eventAccum += dt;
+      if (eventAccum > 1) {
+        eventAccum = 0;
+        // encounters only start after the player has been playing a short while
+        const started = s.playtime > 45 && (s.totalAw > 300 || s.clicks > 40);
+        const luck = gearLuck(s);
+        if (started && !s.encounter?.isFinale) {
+          if (!s.buff && Math.random() < 0.05 + luck * 0.2) {
+            const p: Phenomenon = PHENOMENA[Math.floor(Math.random() * PHENOMENA.length)];
+            if (p.effect === 'burst') {
+              const amt = Math.max(50, (productionPerSec(s) * 45 + baseClickPower(s) * 25) * skillBonuses(s).burstMult);
+              s.aw += amt;
+              s.totalAw += amt;
+              s.lifetimeAw += amt;
+              if (s.settings.sound) sfx.event();
+              pushToast('event', `${p.name}: +${Math.round(amt)} AW burst!`);
+              checkLevelUp();
+            } else {
+              s.buff = { id: p.id, name: p.name, effect: p.effect, label: p.label, until: now + 18000 * skillBonuses(s).buffDurationMult };
+              if (s.settings.sound) sfx.event();
+              pushToast('event', `${p.name}: ${p.label} (18s)`);
+            }
+          }
+          // Encounters: ~2%/sec base (≈ once per ~50s), gated by a 45s cooldown after the
+          // last one ended. Luck slightly raises the chance. Bosses only from depth 6+.
+          // Note: encounters can spawn even while a buff is active (they coexist).
+          if (!s.encounter && now > s.encounterCooldownUntil && Math.random() < 0.02 + luck * 0.03) {
+            const pool: Encounter[] = ENCOUNTERS.filter((e) => (s.levelIndex >= 6 ? true : !e.boss));
+            const enc = pool[Math.floor(Math.random() * pool.length)];
+            const need = enc.boss ? 40 + s.levelIndex * 5 : 15 + s.levelIndex * 3;
+            const reward = Math.max(
+              enc.boss ? 500 : 100,
+              productionPerSec(s) * (enc.boss ? 70 : 25) + baseClickPower(s) * (enc.boss ? 50 : 18),
+            );
+            s.encounter = {
+              id: enc.id,
+              name: enc.name,
+              desc: enc.desc,
+              boss: enc.boss,
+              isFinale: false,
+              need,
+              got: 0,
+              until: now + (enc.boss ? 16000 : 12000),
+              reward,
+            };
+            if (s.settings.sound) sfx.event();
+            pushToast('event', `${enc.boss ? 'BOSS' : 'Encounter'}: ${enc.name}!`);
+          }
+        }
+      }
+
+      saveAccum += dt;
+      if (saveAccum > 5) {
+        saveAccum = 0;
+        try {
+          localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+        } catch {
+          /* ignore */
+        }
+      }
+
+      rerender();
+    }, 100);
+    return () => {
+      clearInterval(interval);
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(stateRef.current));
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [checkLevelUp, pushToast, rerender, grantGear, checkAchievements, gainXp]);
+
+  return {
+    state: stateRef.current,
+    combo: comboRef.current,
+    floats,
+    toasts,
+    doClick,
+    attackEncounter,
+    fleeEncounter,
+    startFinale,
+    buyGenerator,
+    equipGear,
+    prestige,
+    unlockSkill,
+    toggleSetting,
+    hardReset,
+    choosePerk,
+    startExpedition,
+    expeditionChoose,
+    expeditionDeeper,
+    expeditionExtract,
+    expeditionClose,
+  };
+}
