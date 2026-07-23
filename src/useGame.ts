@@ -1318,22 +1318,10 @@ export function useGame() {
       if (!skillBonuses(s).comboNoDecay && now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
       if (s.buff && now > s.buff.until) s.buff = null;
 
-      // Move and expire the pending phenomenon orb
-      if (s.pendingPhenomenon) {
-        const pp = s.pendingPhenomenon;
-        if (now > pp.expires) {
-          // Player missed it
-          s.pendingPhenomenon = null;
-          pushToast('info', `${pp.name} faded away...`);
-        } else {
-          // Move the orb, bouncing off edges
-          pp.x += pp.vx * dt;
-          pp.y += pp.vy * dt;
-          if (pp.x < 0.05) { pp.x = 0.05; pp.vx = Math.abs(pp.vx); }
-          if (pp.x > 0.95) { pp.x = 0.95; pp.vx = -Math.abs(pp.vx); }
-          if (pp.y < 0.05) { pp.y = 0.05; pp.vy = Math.abs(pp.vy); }
-          if (pp.y > 0.85) { pp.y = 0.85; pp.vy = -Math.abs(pp.vy); }
-        }
+      // Expire the pending phenomenon orb if player missed it
+      if (s.pendingPhenomenon && now > s.pendingPhenomenon.expires) {
+        pushToast('info', `${s.pendingPhenomenon.name} faded away...`);
+        s.pendingPhenomenon = null;
       }
       if (s.encounter && s.encounter.until && now > s.encounter.until) {
         pushToast('info', `${s.encounter.name} wandered off...`);

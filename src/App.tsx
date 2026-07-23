@@ -31,6 +31,7 @@ import {
   levelSetComplete,
   setBonusMult,
   setBonusInfo,
+  type PendingPhenomenon,
 } from './useGame';
 import { perkById, PERKS } from './perks';
 import type { EventKind } from './expedition';
@@ -69,6 +70,99 @@ function hexPoints(r: number): string {
     const a = (Math.PI / 3) * i - Math.PI / 2;
     return `${(r * Math.cos(a)).toFixed(1)},${(r * Math.sin(a)).toFixed(1)}`;
   }).join(' ');
+}
+
+// ===== Phenomenon Orb — smooth flying target with rAF =====
+function PhenomenonOrb({ pp, onCatch }: { pp: PendingPhenomenon; onCatch: () => void }) {
+  const orbRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef({ x: pp.x, y: pp.y, vx: pp.vx, vy: pp.vy });
+
+  useEffect(() => {
+    let raf: number;
+    let last = performance.now();
+    const tick = () => {
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const p = posRef.current;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < 0.04) { p.x = 0.04; p.vx = Math.abs(p.vx); }
+      if (p.x > 0.96) { p.x = 0.96; p.vx = -Math.abs(p.vx); }
+      if (p.y < 0.08) { p.y = 0.08; p.vy = Math.abs(p.vy); }
+      if (p.y > 0.88) { p.y = 0.88; p.vy = -Math.abs(p.vy); }
+      if (orbRef.current) {
+        orbRef.current.style.left = `${p.x * 100}%`;
+        orbRef.current.style.top = `${p.y * 100}%`;
+      }
+      if (timerRef.current) {
+        const remaining = Math.max(0, Math.ceil((pp.expires - now) / 1000));
+        timerRef.current.textContent = String(remaining);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [pp.expires]);
+
+  const shortName = pp.name.replace(/^Phenomenon \d+ - /, '').replace(/['"]/g, '');
+
+  return (
+    <div
+      ref={orbRef}
+      className="phen-orb"
+      style={{ left: `${pp.x * 100}%`, top: `${pp.y * 100}%` }}
+      onClick={(e) => { e.stopPropagation(); onCatch(); }}
+    >
+      <div className="phen-orb-glow" />
+      <div className="phen-orb-core">
+        <span className="phen-orb-icon">{pp.icon}</span>
+      </div>
+      <div className="phen-orb-trail" />
+      <div ref={timerRef} className="phen-orb-timer">6</div>
+      <div className="phen-orb-name">{shortName}</div>
+    </div>
+  );
+}
+
+// ===== Buff Atmosphere — corner gradient overlay when buff is active =====
+const BUFF_COLORS: Record<string, { c1: string; c2: string; icon: string }> = {
+  'clickX1.3': { c1: 'rgba(255,138,107,0.25)', c2: 'rgba(255,80,40,0.05)', icon: '⚡' },
+  'clickX1.5': { c1: 'rgba(255,80,40,0.35)', c2: 'rgba(200,40,20,0.08)', icon: '⚡' },
+  'prodX1.3':  { c1: 'rgba(107,207,255,0.25)', c2: 'rgba(40,140,255,0.05)', icon: '⚙' },
+  'prodX1.5':  { c1: 'rgba(40,160,255,0.35)', c2: 'rgba(20,100,220,0.08)', icon: '⚙' },
+  'luck':      { c1: 'rgba(180,255,120,0.25)', c2: 'rgba(100,220,60,0.05)', icon: '🍀' },
+  'burst':     { c1: 'rgba(255,200,80,0.25)', c2: 'rgba(255,160,40,0.05)', icon: '💧' },
+};
+
+function BuffAtmosphere({ effect, name, label, until }: { effect: string; name: string; label: string; until: number }) {
+  const colors = BUFF_COLORS[effect] ?? BUFF_COLORS['clickX1.3'];
+  const [, force] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => force((n) => n + 1), 500);
+    return () => clearInterval(i);
+  }, []);
+  const remaining = Math.max(0, Math.ceil((until - performance.now()) / 1000));
+  const shortName = name.replace(/^Phenomenon \d+ - /, '').replace(/['"]/g, '');
+
+  return (
+    <>
+      <div className="buff-atmosphere" style={{ ['--bc1' as string]: colors.c1, ['--bc2' as string]: colors.c2 }} />
+      <div className="buff-atmosphere-corners" style={{ ['--bc1' as string]: colors.c1, ['--bc2' as string]: colors.c2 }}>
+        <div className="buff-corner buff-corner-tl" />
+        <div className="buff-corner buff-corner-tr" />
+        <div className="buff-corner buff-corner-bl" />
+        <div className="buff-corner buff-corner-br" />
+      </div>
+      <div className="buff-status">
+        <span className="buff-status-icon">{colors.icon}</span>
+        <span className="buff-status-text">{shortName}</span>
+        <span className="buff-status-label">{label}</span>
+        <span className="buff-status-time">{remaining}s</span>
+      </div>
+    </>
+  );
 }
 
 export default function App() {
@@ -789,38 +883,19 @@ export default function App() {
         </div>
       )}
 
-      {s.buff && (
-        <div className="buff-banner">
-          <span className="pulse">⚡</span> {s.buff.name}: {s.buff.label} — {Math.max(0, Math.ceil((s.buff.until - performance.now()) / 1000))}s
-        </div>
-      )}
+      {/* Buff banner removed — replaced by BuffAtmosphere corner effects */}
 
-      {/* Flying phenomenon orb — skill check to catch */}
+      {/* Flying phenomenon orb — smooth rAF movement, skill check to catch */}
       {s.pendingPhenomenon && (
-        <div
-          className="phenomenon-orb"
-          style={{
-            left: `${s.pendingPhenomenon.x * 100}%`,
-            top: `${s.pendingPhenomenon.y * 100}%`,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            g.catchPhenomenon();
-          }}
-        >
-          <div className="phenomenon-orb-inner">
-            <span className="phenomenon-orb-icon">{s.pendingPhenomenon.icon}</span>
-          </div>
-          <div className="phenomenon-orb-ring" />
-          <div className="phenomenon-orb-timer">
-            {Math.max(0, Math.ceil((s.pendingPhenomenon.expires - performance.now()) / 1000))}
-          </div>
-          <div className="phenomenon-orb-label">{s.pendingPhenomenon.name.replace(/^Phenomenon \d+ - /, '')}</div>
-        </div>
+        <PhenomenonOrb
+          key={s.pendingPhenomenon.spawned}
+          pp={s.pendingPhenomenon}
+          onCatch={() => g.catchPhenomenon()}
+        />
       )}
 
-      {/* Screen flash effect when a phenomenon spawns */}
-      {s.pendingPhenomenon && <div className="phenomenon-flash" key={s.pendingPhenomenon.spawned} />}
+      {/* Atmospheric buff overlay — corner gradients when a buff is active */}
+      {s.buff && <BuffAtmosphere effect={s.buff.effect} name={s.buff.name} label={s.buff.label} until={s.buff.until} />}
 
       {s.pendingLevelUp && !s.pendingPerks && (
         <div className="perk-overlay">
