@@ -1444,12 +1444,43 @@
 }
 
 /* Wiki item card upgrade indicators */
-.wiki-item-card.upgraded {
-  border-color: rgba(255,215,0,0.5) !important;
-  box-shadow: 0 0 20px rgba(255,215,0,0.15) !important;
-}
 .wiki-item-card.upgraded .wic-glow {
-  background: radial-gradient(circle, rgba(255,215,0,0.15), transparent 70%) !important;
+  background: radial-gradient(circle, rgba(255,215,0,0.18), transparent 65%) !important;
+  animation: spin 6s linear infinite, upgradedInnerPulse 2.5s ease-in-out infinite;
+}
+.wiki-item-card.upgraded .wic-rays {
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(255,215,0,0.06) 8deg, transparent 16deg, transparent 38deg, rgba(255,215,0,0.06) 46deg, transparent 54deg) !important;
+  opacity: 0.7;
+  animation: spin 10s linear infinite reverse;
+}
+.wiki-item-card.upgraded::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,140,0,0.03), rgba(255,215,0,0.06));
+  background-size: 200% 200%;
+  animation: upgradedShimmer 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.wiki-item-card.upgraded::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,215,0,0.025) 8px, rgba(255,215,0,0.025) 16px);
+  pointer-events: none;
+  z-index: 0;
+}
+.wiki-item-card.upgraded > * { position: relative; z-index: 1; }
+@keyframes upgradedShimmer {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+}
+@keyframes upgradedInnerPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 .wic-upgrade-badge {
   position: absolute;
@@ -1535,20 +1566,46 @@
   border-radius: 12px;
   padding: 20px 16px;
   background: rgba(15,12,25,0.9);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 2px solid;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
+.inspect-card.rar-common { border-color: var(--c-common); box-shadow: 0 0 20px rgba(185,182,168,0.12); }
+.inspect-card.rar-uncommon { border-color: var(--c-uncommon); box-shadow: 0 0 24px rgba(126,224,160,0.18); }
+.inspect-card.rar-rare { border-color: var(--c-rare); box-shadow: 0 0 28px rgba(95,178,255,0.22); }
+.inspect-card.rar-epic { border-color: var(--c-epic); box-shadow: 0 0 32px rgba(199,155,255,0.28); }
+.inspect-card.rar-legendary { border-color: var(--c-legendary); box-shadow: 0 0 36px rgba(255,184,77,0.32); }
+.inspect-card.rar-mythic { border-color: var(--c-mythic); box-shadow: 0 0 40px rgba(255,77,109,0.38); animation: mythicPulse 2.5s ease-in-out infinite; }
 .inspect-card.upgraded {
-  border-color: rgba(255,215,0,0.4);
-  box-shadow: 0 0 30px rgba(255,215,0,0.2), inset 0 0 20px rgba(255,215,0,0.05);
+  background: linear-gradient(160deg, rgba(25,18,5,0.95), rgba(15,12,25,0.9));
   animation: inspectUpgradedGlow 2s ease-in-out infinite;
 }
+.inspect-card.upgraded::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,140,0,0.04), rgba(255,215,0,0.08));
+  background-size: 200% 200%;
+  animation: upgradedShimmer 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.inspect-card.upgraded::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,215,0,0.03) 8px, rgba(255,215,0,0.03) 16px);
+  pointer-events: none;
+  z-index: 0;
+}
+.inspect-card.upgraded > * { position: relative; z-index: 1; }
 @keyframes inspectUpgradedGlow {
-  0%, 100% { box-shadow: 0 0 30px rgba(255,215,0,0.2), inset 0 0 20px rgba(255,215,0,0.05); }
-  50% { box-shadow: 0 0 50px rgba(255,215,0,0.35), inset 0 0 30px rgba(255,215,0,0.08); }
+  0%, 100% { box-shadow: inset 0 0 20px rgba(255,215,0,0.06); }
+  50% { box-shadow: inset 0 0 35px rgba(255,215,0,0.12); }
 }
 .ic-glow {
   position: absolute;
