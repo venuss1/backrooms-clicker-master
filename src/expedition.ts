@@ -56,6 +56,7 @@ export interface Expedition {
   modifier: DelveModifier;
   pendingGearReveal: string | null; // gear ID awaiting reveal animation
   lastLoot: { aw: number; xp: number; gear: number } | null; // last event's loot for display
+  deathSavedOnce: boolean; // whether the one-time death save has been used
 }
 
 function pick<T>(arr: T[]): T {

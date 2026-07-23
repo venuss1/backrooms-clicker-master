@@ -378,6 +378,44 @@
 .tree-tooltip-maxed { color: #6bff6b; font-weight: 700; }
 .tree-tooltip-cost { color: #c79bff; font-weight: 700; }
 .tree-tooltip-locked { color: #888; font-style: italic; }
+.tree-tooltip-type { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.tree-tooltip-badge { padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+.tree-tooltip-badge.travel { background: rgba(255,255,255,0.08); color: #9aa0b0; border: 1px solid rgba(255,255,255,0.15); }
+.tree-tooltip-badge.notable { background: rgba(107,207,255,0.15); color: #6bcfff; border: 1px solid rgba(107,207,255,0.4); }
+.tree-tooltip-badge.keystone { background: rgba(255,215,107,0.18); color: #ffd76b; border: 1px solid rgba(255,215,107,0.5); }
+.tree-tooltip-cost-info { opacity: 0.7; }
+.tree-tooltip-reqs { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; font-size: 11px; }
+.tree-tooltip-reqs-label { opacity: 0.5; width: 100%; }
+.tree-tooltip-req.met { color: #6bff6b; }
+.tree-tooltip-req.unmet { color: #ff6b6b; }
+
+/* ---------- Skill node type styles ---------- */
+.skill-node { transition: opacity 0.15s; }
+.skill-node.travel { }
+.skill-node.notable { }
+.skill-node.keystone { }
+.skill-node.maxed { }
+.skill-node.available { }
+
+/* Keystone pulse animation */
+.keystone-pulse { animation: keystonePulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes keystonePulse {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.18); }
+}
+.reduce-motion .keystone-pulse { animation: none; opacity: 0.4; }
+
+/* Connection line classes */
+.skill-line { transition: stroke-opacity 0.2s; }
+.skill-line.travel { }
+.skill-line.notable { }
+.skill-line.keystone { }
+
+/* Wiki node type badges */
+.node-badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle; }
+.node-badge.node-travel { background: rgba(255,255,255,0.08); color: #9aa0b0; border: 1px solid rgba(255,255,255,0.15); }
+.node-badge.node-notable { background: rgba(107,207,255,0.15); color: #6bcfff; border: 1px solid rgba(107,207,255,0.4); }
+.node-badge.node-keystone { background: rgba(255,215,107,0.18); color: #ffd76b; border: 1px solid rgba(255,215,107,0.5); }
 
 .tree-legend-bar { display: flex; gap: 24px; padding: 10px 20px; background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; flex-wrap: wrap; }
 .tree-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
@@ -1146,10 +1184,17 @@
 .wiki-skill-row.owned { border-color: rgba(126,224,160,0.3); background: rgba(126,224,160,0.05); }
 .wsr-icon { font-size: 20px; }
 .wsr-info { display: flex; flex-direction: column; gap: 2px; }
-.wsr-name { font-size: 13px; font-weight: 700; }
+.wsr-name { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .wsr-rank { font-size: 11px; opacity: 0.5; }
 .wsr-desc { font-size: 11px; opacity: 0.6; }
 .wsr-cost { font-size: 10px; opacity: 0.4; }
+
+/* Node type badges (skill tree) */
+.node-badge { display: inline-block; border-radius: 4px; text-transform: capitalize; font-weight: 700; letter-spacing: 0.3px; vertical-align: middle; }
+.node-travel { font-size: 9px; padding: 1px 5px; background: rgba(150,150,150,0.25); color: #aaa; border: 1px solid rgba(150,150,150,0.3); }
+.node-notable { font-size: 10px; padding: 2px 7px; background: rgba(80,150,255,0.25); color: #8bb8ff; border: 1px solid rgba(80,150,255,0.4); }
+.node-keystone { font-size: 11px; padding: 3px 9px; background: rgba(255,200,60,0.3); color: #ffd954; border: 1px solid rgba(255,200,60,0.5); animation: node-pulse 2s ease-in-out infinite; }
+@keyframes node-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,200,60,0.4); } 50% { box-shadow: 0 0 8px 2px rgba(255,200,60,0.5); } }
 
 /* Wiki perks page */
 .wiki-perk-list { display: flex; flex-direction: column; gap: 6px; }

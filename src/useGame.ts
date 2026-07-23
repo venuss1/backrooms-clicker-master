@@ -85,6 +85,7 @@ export interface GameState {
   expedition: Expedition | null;
   deepestAbyss: number; // deepest abyss room ever reached (permanent multiplier)
   encounterCooldownUntil: number; // performance.now() timestamp; no encounters spawn before this
+  lastSaved: number; // Date.now() of last save — used for offline progress
 }
 
 export interface Achievement {
@@ -157,6 +158,7 @@ function freshState(): GameState {
     expedition: null,
     deepestAbyss: 0,
     encounterCooldownUntil: 0,
+    lastSaved: Date.now(),
   };
 }
 
@@ -179,6 +181,27 @@ function load(): GameState {
     };
     // Migrate old saves: ensure maxLevelReached is at least the current levelIndex
     if (merged.maxLevelReached < merged.levelIndex) merged.maxLevelReached = merged.levelIndex;
+
+    // Offline progress — production at reduced efficiency while away
+    const sb = skillBonuses(merged);
+    const lastSaved = (s as Partial<GameState>).lastSaved ?? Date.now();
+    const elapsed = Math.max(0, Math.min(8 * 3600, (Date.now() - lastSaved) / 1000));
+    if (elapsed > 60) {
+      const prod = productionPerSec(merged);
+      const gain = prod * elapsed * sb.offlineEfficiency;
+      merged.aw += gain;
+      merged.totalAw += gain;
+      merged.lifetimeAw += gain;
+      if (sb.offlineXp) {
+        merged.xp += elapsed * (1 + merged.levelIndex * 0.4) * (1 + perkStat(merged, 'xp'));
+        while (merged.xp >= xpNeed(merged.xpLevel)) {
+          merged.xp -= xpNeed(merged.xpLevel);
+          merged.xpLevel += 1;
+          if (merged.xpLevel % 2 === 0) merged.perkTokens += 1;
+        }
+      }
+    }
+    merged.lastSaved = Date.now();
     return merged;
   } catch {
     return freshState();
@@ -203,18 +226,24 @@ export function skillBonuses(s: GameState): SkillBonuses {
 export function genCost(s: GameState, id: string): number {
   const owned = genCount(s, id);
   const g = GENERATORS.find((x) => x.id === id)!;
-  const growth = skillBonuses(s).allyCostGrowth;
-  return Math.ceil(g.baseCost * Math.pow(growth, owned));
+  const sb = skillBonuses(s);
+  const growth = sb.allyCostGrowth;
+  let cost = g.baseCost * Math.pow(growth, owned) * (1 - sb.allyCostReduction);
+  if (sb.allyTypeBonus > 0) cost *= 2; // a-ascension keystone doubles ally costs
+  return Math.ceil(cost);
 }
 
 // Total cost of buying `count` generators starting from current owned count
 export function genBulkCost(s: GameState, id: string, count: number): number {
   const owned = genCount(s, id);
   const g = GENERATORS.find((x) => x.id === id)!;
-  const growth = skillBonuses(s).allyCostGrowth;
+  const sb = skillBonuses(s);
+  const growth = sb.allyCostGrowth;
+  const reduction = 1 - sb.allyCostReduction;
+  const ascensionMult = sb.allyTypeBonus > 0 ? 2 : 1;
   let total = 0;
   for (let i = 0; i < count; i++) {
-    total += Math.ceil(g.baseCost * Math.pow(growth, owned + i));
+    total += Math.ceil(g.baseCost * Math.pow(growth, owned + i) * reduction * ascensionMult);
   }
   return total;
 }
@@ -223,11 +252,14 @@ export function genBulkCost(s: GameState, id: string, count: number): number {
 export function genMaxAffordable(s: GameState, id: string, maxCount: number = 1000): number {
   const owned = genCount(s, id);
   const g = GENERATORS.find((x) => x.id === id)!;
-  const growth = skillBonuses(s).allyCostGrowth;
+  const sb = skillBonuses(s);
+  const growth = sb.allyCostGrowth;
+  const reduction = 1 - sb.allyCostReduction;
+  const ascensionMult = sb.allyTypeBonus > 0 ? 2 : 1;
   let total = 0;
   let n = 0;
   for (let i = 0; i < maxCount; i++) {
-    const cost = Math.ceil(g.baseCost * Math.pow(growth, owned + i));
+    const cost = Math.ceil(g.baseCost * Math.pow(growth, owned + i) * reduction * ascensionMult);
     if (total + cost > s.aw) break;
     total += cost;
     n++;
@@ -239,10 +271,11 @@ export function levelMult(s: GameState): number {
   return LEVELS[s.levelIndex]?.mult ?? 1;
 }
 
-// Levels 24+ require 1 rebirth, levels 31+ require 3 rebirths.
+// Levels 24+ require 1 rebirth, levels 28+ require 2, levels 31+ require 3.
 // This gates deeper content behind the rebirth loop (NOT the skill tree).
 export function levelPrestigeGate(levelIndex: number): number {
   if (levelIndex >= 31) return 3;
+  if (levelIndex >= 28) return 2;
   if (levelIndex >= 24) return 1;
   return 0;
 }
@@ -284,7 +317,8 @@ export function abyssMult(s: GameState): number {
 // Combined meta multiplier applied to both click power and production
 function metaMult(s: GameState): number {
   const sb = skillBonuses(s);
-  return xpLevelMult(s) * (1 + perkStat(s, 'aw')) * abyssMult(s) * sb.awMult * setBonusMult(s);
+  const ownedTypes = GENERATORS.filter((g) => genCount(s, g.id) > 0).length;
+  return xpLevelMult(s) * (1 + perkStat(s, 'aw')) * abyssMult(s) * sb.awMult * setBonusMult(s) * (1 + ownedTypes * sb.allyTypeBonus);
 }
 
 // ---------- Set Bonuses ----------
@@ -328,11 +362,13 @@ function equippedGear(s: GameState): Gear[] {
 }
 
 export function gearClickMult(s: GameState): number {
-  const mult = skillBonuses(s).gearStatMult;
+  const sb = skillBonuses(s);
+  const mult = sb.gearStatMult * (1 + sb.gearStatFromSets * setBonusInfo(s).count);
   return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.clickMult - 1) * mult), 1);
 }
 export function gearProdMult(s: GameState): number {
-  const mult = skillBonuses(s).gearStatMult;
+  const sb = skillBonuses(s);
+  const mult = sb.gearStatMult * (1 + sb.gearStatFromSets * setBonusInfo(s).count);
   return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.prodMult - 1) * mult), 1);
 }
 export function gearLuck(s: GameState): number {
@@ -367,12 +403,15 @@ export function comboMult(combo: number, capBonus: number = 0): number {
 
 export function baseClickPower(s: GameState): number {
   const sb = skillBonuses(s);
-  return 1 * gearClickMult(s) * levelMult(s) * sb.clickMult * (1 + perkStat(s, 'click')) * metaMult(s);
+  const buffed = s.buff ? 1 + sb.clickPowerBuffed : 1;
+  return 1 * gearClickMult(s) * levelMult(s) * sb.clickMult * (1 + perkStat(s, 'click')) * metaMult(s) * buffed;
 }
 
 export function clickPower(s: GameState, combo: number): number {
   const sb = skillBonuses(s);
-  return baseClickPower(s) * comboMult(combo, sb.comboCapBonus) * buffClickMult(s);
+  const perCombo = 1 + sb.clickPowerPerCombo * Math.floor(combo / 50);
+  const threshold = sb.comboThresholdDoubled && combo > 50 ? 2 : 1;
+  return baseClickPower(s) * comboMult(combo, sb.comboCapBonus) * buffClickMult(s) * perCombo * threshold;
 }
 
 export function productionPerSec(s: GameState): number {
@@ -385,7 +424,10 @@ export function productionPerSec(s: GameState): number {
   }
   const synergyMult = 1 + ownedTypes * sb.allySynergyPct;
   const singularityMult = 1 + s.xpLevel * sb.prodXpLevelBonus;
-  return p * levelMult(s) * gearProdMult(s) * buffProdMult(s) * sb.prodMult * synergyMult * singularityMult * (1 + perkStat(s, 'prod')) * metaMult(s);
+  const typeBonus = 1 + ownedTypes * sb.allyTypeBonus;
+  const overdrive = s.buff ? 1 + 0.10 * (s.skills['a-overdrive'] ?? 0) : 1;
+  const generatorBonus = 1 + 0.08 * (s.skills['a-generator'] ?? 0) * ownedTypes;
+  return p * levelMult(s) * gearProdMult(s) * buffProdMult(s) * sb.prodMult * synergyMult * singularityMult * typeBonus * overdrive * generatorBonus * (1 + perkStat(s, 'prod')) * metaMult(s);
 }
 
 export function nextLevel(s: GameState) {
@@ -406,7 +448,8 @@ export function isMaxDepth(s: GameState): boolean {
 
 // Echoes you'd gain by rebirthing now — cube root scaling, available early
 export function pendingEchoes(s: GameState): number {
-  const base = Math.floor(Math.cbrt(s.lifetimeAw / 1e5));
+  const sb = skillBonuses(s);
+  const base = Math.floor(Math.cbrt(s.lifetimeAw / 5e4) * (1 + sb.prestigeEchoBonus + perkStat(s, 'echo')));
   return Math.max(0, base - s.totalEchoes);
 }
 
@@ -598,16 +641,31 @@ export function useGame() {
 
       let power = clickPower(s, comboRef.current);
       const isCrit = Math.random() < gearCrit(s);
-      if (isCrit) power *= sb.critMult;
+      if (isCrit) {
+        power *= critMultVal(s) + sb.critDamageAdd;
+        // Keen Eye: crits restore 10 combo
+        if (s.skills['w-keeneye']) comboRef.current += 10;
+        // Adrenaline: +15% click power per rank for 3s after crit (stacks as temporary buff)
+        const adrenalineRanks = s.skills['w-adrenaline'] ?? 0;
+        if (adrenalineRanks > 0) power *= 1 + 0.15 * adrenalineRanks;
+      }
 
       // Transcendence: clicking also grants a fraction of per-second production
       if (sb.clickGainsProdPct > 0) power += productionPerSec(s) * sb.clickGainsProdPct;
+
+      // Execution: crits have a chance to trigger a phenomena burst
+      if (isCrit && Math.random() < sb.critBurstChance) {
+        const burst = Math.max(50, (productionPerSec(s) * 45 + baseClickPower(s) * 25) * sb.burstMult);
+        power += burst;
+      }
 
       s.aw += power;
       s.totalAw += power;
       s.lifetimeAw += power;
       s.clicks += 1;
       gainXp(0.6 * sb.xpMult);
+      // Chance per click for bonus XP (Noclipper tree)
+      if (sb.clickXpChance > 0 && Math.random() < sb.clickXpChance) gainXp(5 * sb.xpMult);
 
       if (s.settings.sound) sfx.click(comboRef.current);
 
@@ -698,15 +756,16 @@ export function useGame() {
       const sb = skillBonuses(s);
       const baseRisk = (mode === 'abyss' ? 0.08 : 0.03) * sb.expeditionRiskMult;
       const modifier = rollModifier();
+      const startRoom = sb.expeditionStartRooms;
       s.expedition = {
         mode,
         depth: s.levelIndex,
-        room: 0,
+        room: startRoom,
         haulAw: 0,
         haulXp: 0,
         haulGear: [],
         risk: baseRisk,
-        event: rollEvent(0, mode),
+        event: rollEvent(startRoom, mode),
         phase: 'event',
         over: 'active',
         log: [],
@@ -714,6 +773,7 @@ export function useGame() {
         modifier,
         pendingGearReveal: null,
         lastLoot: null,
+        deathSavedOnce: false,
       };
       if (s.settings.sound) sfx.event();
       const modText = modifier.id !== 'normal' ? ` [${modifier.name}]` : '';
@@ -731,9 +791,11 @@ export function useGame() {
       const ev = exp.event;
       const luck = gearLuck(s);
       const expBonus = perkStat(s, 'expedition');
+      const sb = skillBonuses(s);
       const roomN = exp.room + 1;
       const mod = exp.modifier;
-      const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * skillBonuses(s).expeditionLootMult * mod.lootMult;
+      const setBonus = 1 + sb.expeditionBonusPerSet * setBonusInfo(s).count;
+      const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * sb.expeditionLootMult * mod.lootMult * setBonus;
       const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus)) * mod.riskMult); };
 
       // Level-based gear pool: items only drop at their assigned level (exp.depth)
@@ -758,11 +820,22 @@ export function useGame() {
         return pk.id;
       };
 
-      const caught = (text: string) => {
+      // Returns true if actually caught (expedition over), false if a death save triggered
+      const caught = (text: string): boolean => {
+        if (!exp.deathSavedOnce && sb.deathSaveOnce) {
+          exp.deathSavedOnce = true;
+          exp.risk = Math.max(0, exp.risk - 0.15);
+          return false;
+        }
+        if (Math.random() < sb.deathSaveChance) {
+          exp.risk = Math.max(0, exp.risk - 0.15);
+          return false;
+        }
         exp.over = 'caught';
         exp.phase = 'done';
         exp.lastText = text;
         if (s.settings.sound) sfx.event();
+        return true;
       };
 
       let text = '';
@@ -775,34 +848,43 @@ export function useGame() {
           if (s.settings.sound) sfx.win();
           s.aw += exp.haulAw; s.totalAw += exp.haulAw; s.lifetimeAw += exp.haulAw;
           for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
-          gainXp(exp.haulXp);
+          gainXp(exp.haulXp * sb.expeditionXpMult);
           rerender();
           return;
         }
         const win = Math.random() < Math.max(0.20, Math.min(0.85, 0.40 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.015));
         if (win) {
           const aw = base * 3.0;
-          exp.haulAw += aw; exp.haulXp += 50 * roomN; lootAw = aw; lootXp = 50 * roomN;
-          const g = grantExpGear(true);
+          exp.haulAw += aw; exp.haulXp += 50 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 50 * roomN;
+          // Bosses drop gear — extra/double gear from Noclipper skills
+          const bossGearCount = (1 + sb.bossExtraGear) * (sb.bossDoubleGear ? 2 : 1);
+          let g: string | null = grantExpGear(true);
           if (g) lootGear = 1;
           const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
-          text = `Slew ${ev.name}! +${Math.round(aw)} AW${gname ? ` — it dropped ${gname}!` : ''}`;
+          for (let i = 1; i < bossGearCount; i++) {
+            const extra = grantExpGear(true);
+            if (extra) lootGear++;
+          }
+          text = `Slew ${ev.name}! +${Math.round(aw)} AW${gname ? ` — it dropped ${gname}!` : ''}${lootGear > 1 ? ` (${lootGear} items)` : ''}`;
         } else {
-          caught(`${ev.name} crushed you — your entire haul is lost.`);
-          rerender();
-          return;
+          const deathText = `${ev.name} crushed you — your entire haul is lost.`;
+          if (caught(deathText)) {
+            rerender();
+            return;
+          }
+          text = `${deathText} ...but you cheated death! Risk reduced.`;
         }
       } else if (ev.kind === 'cache') {
         if (optId === 'open') {
           const aw = base * 1.2;
-          exp.haulAw += aw; exp.haulXp += 8 * roomN; addRisk(0.02); lootAw = aw; lootXp = 8 * roomN;
-          const g = Math.random() < 0.25 + luck + mod.gearBonus ? grantExpGear() : null;
+          exp.haulAw += aw; exp.haulXp += 8 * roomN * sb.expeditionXpMult; addRisk(0.02); lootAw = aw; lootXp = 8 * roomN;
+          const g = Math.random() < 0.25 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
           if (g) lootGear = 1;
           const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
           text = `Pried the cache: +${Math.round(aw)} AW${gname ? ` — found ${gname}!` : ''}`;
         } else {
           const aw = base * 0.5;
-          exp.haulAw += aw; exp.haulXp += 5 * roomN; lootAw = aw; lootXp = 5 * roomN;
+          exp.haulAw += aw; exp.haulXp += 5 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 5 * roomN;
           text = `Searched carefully: +${Math.round(aw)} AW (no risk)`;
         }
       } else if (ev.kind === 'entity') {
@@ -810,20 +892,23 @@ export function useGame() {
           const win = Math.random() < Math.max(0.15, Math.min(0.92, 0.45 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.02));
           if (win) {
             const aw = base * 1.7;
-            exp.haulAw += aw; exp.haulXp += 15 * roomN; lootAw = aw; lootXp = 15 * roomN;
-            const g = Math.random() < 0.35 + luck + mod.gearBonus ? grantExpGear() : null;
+            exp.haulAw += aw; exp.haulXp += 15 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 15 * roomN;
+            const g = Math.random() < 0.35 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
             if (g) lootGear = 1;
             const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
             text = `Slew ${ev.name}: +${Math.round(aw)} AW${gname ? ` — dropped ${gname}!` : ''}`;
           } else {
-            caught(`${ev.name} overwhelmed you — your haul is lost.`);
-            rerender();
-            return;
+            const deathText = `${ev.name} overwhelmed you — your haul is lost.`;
+            if (caught(deathText)) {
+              rerender();
+              return;
+            }
+            text = `${deathText} ...but you escaped death! Risk reduced.`;
           }
         } else if (optId === 'sneak') {
           const ok = Math.random() < Math.max(0.1, Math.min(0.9, 0.42 + luck + expBonus * 0.3 - exp.room * 0.03));
           if (ok) {
-            const aw = base * 0.3; exp.haulAw += aw; exp.haulXp += 6 * roomN; lootAw = aw; lootXp = 6 * roomN;
+            const aw = base * 0.3; exp.haulAw += aw; exp.haulXp += 6 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 6 * roomN;
             text = `Slipped past ${ev.name}: +${Math.round(aw)} AW`;
           } else {
             addRisk(0.16);
@@ -836,8 +921,8 @@ export function useGame() {
         }
       } else if (ev.kind === 'fork') {
         if (Math.random() < 0.6) {
-          const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN; lootAw = aw; lootXp = 10 * roomN;
-          const g = Math.random() < 0.20 + luck + mod.gearBonus ? grantExpGear() : null;
+          const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 10 * roomN;
+          const g = Math.random() < 0.20 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
           if (g) lootGear = 1;
           const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
           text = `The passage opened up: +${Math.round(aw)} AW${gname ? ` — found ${gname}!` : ''}`;
@@ -847,13 +932,13 @@ export function useGame() {
         }
       } else if (ev.kind === 'shrine') {
         if (optId === 'attune') {
-          exp.haulXp += 22 * roomN; lootXp = 22 * roomN;
+          exp.haulXp += 22 * roomN * sb.expeditionXpMult; lootXp = 22 * roomN;
           const aw = base * 0.6; exp.haulAw += aw; lootAw = aw;
           text = `Attuned to ${ev.name}: +${22 * roomN} XP, +${Math.round(aw)} AW`;
         } else {
           if (Math.random() < 0.55) {
-            const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN; lootAw = aw; lootXp = 12 * roomN;
-            const g = Math.random() < 0.40 + luck + mod.gearBonus ? grantExpGear() : null;
+            const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 12 * roomN;
+            const g = Math.random() < 0.40 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
             if (g) lootGear = 1;
             const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
             text = `Harvested ${ev.name}: +${Math.round(aw)} AW${gname ? ` — tore loose ${gname}!` : ''}`;
@@ -864,7 +949,7 @@ export function useGame() {
         }
       } else if (ev.kind === 'treasure') {
         if (optId === 'pry') {
-          const g = Math.random() < 0.60 + luck + mod.gearBonus ? grantExpGear() : null;
+          const g = Math.random() < 0.60 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
           if (g) lootGear = 1;
           const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
           const aw = base * 0.4; exp.haulAw += aw; lootAw = aw;
@@ -877,8 +962,8 @@ export function useGame() {
         if (optId === 'disarm') {
           const ok = Math.random() < Math.max(0.2, Math.min(0.85, 0.45 + luck + expBonus * 0.3));
           if (ok) {
-            const aw = base * 0.8; exp.haulAw += aw; exp.haulXp += 8 * roomN; lootAw = aw; lootXp = 8 * roomN;
-            const g = Math.random() < 0.15 + luck + mod.gearBonus ? grantExpGear() : null;
+            const aw = base * 0.8; exp.haulAw += aw; exp.haulXp += 8 * roomN * sb.expeditionXpMult; lootAw = aw; lootXp = 8 * roomN;
+            const g = Math.random() < 0.15 + luck + mod.gearBonus + sb.gearDropBonus ? grantExpGear() : null;
             if (g) lootGear = 1;
             const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
             text = `Disarmed it! Salvaged +${Math.round(aw)} AW${gname ? ` and found ${gname}!` : ''}`;
@@ -900,7 +985,7 @@ export function useGame() {
         } else if (optId === 'offer-gear') {
           if (exp.haulGear.length > 0) {
             exp.haulGear.pop();
-            exp.haulXp += 40 * roomN; lootXp = 40 * roomN;
+            exp.haulXp += 40 * roomN * sb.expeditionXpMult; lootXp = 40 * roomN;
             const g = grantExpGear(true);
             if (g) lootGear = 1;
             const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
@@ -911,6 +996,20 @@ export function useGame() {
         } else {
           text = `You walk past the altar. It watches you leave.`;
         }
+      }
+
+      // Double loot chance — Noclipper "Treasure Hunter" skill
+      if ((lootAw > 0 || lootGear > 0) && Math.random() < sb.doubleLootChance) {
+        exp.haulAw += lootAw;
+        exp.haulXp += lootXp;
+        lootAw *= 2;
+        lootXp *= 2;
+        if (lootGear > 0) {
+          const lastGear = exp.haulGear[exp.haulGear.length - 1];
+          if (lastGear) exp.haulGear.push(lastGear);
+          lootGear *= 2;
+        }
+        text += ' (DOUBLE LOOT!)';
       }
 
       exp.lastLoot = { aw: lootAw, xp: lootXp, gear: lootGear };
@@ -937,14 +1036,30 @@ export function useGame() {
     const s = stateRef.current;
     const exp = s.expedition;
     if (!exp || exp.phase !== 'choice') return;
+    const sb = skillBonuses(s);
     // ambush check — the deeper you push, the likelier you're caught
     if (Math.random() < exp.risk) {
-      exp.over = 'caught';
-      exp.phase = 'done';
-      exp.lastText = 'An ambush! You were caught — the haul is gone.';
-      if (s.settings.sound) sfx.event();
-      rerender();
-      return;
+      const deathText = 'An ambush! You were caught — the haul is gone.';
+      // Attempt death save before ending the expedition
+      let saved = false;
+      if (!exp.deathSavedOnce && sb.deathSaveOnce) {
+        exp.deathSavedOnce = true;
+        saved = true;
+      } else if (Math.random() < sb.deathSaveChance) {
+        saved = true;
+      }
+      if (saved) {
+        exp.risk = Math.max(0, exp.risk - 0.15);
+        exp.lastText = `${deathText} ...but you slipped away! Risk reduced.`;
+        // fall through to continue delving
+      } else {
+        exp.over = 'caught';
+        exp.phase = 'done';
+        exp.lastText = deathText;
+        if (s.settings.sound) sfx.event();
+        rerender();
+        return;
+      }
     }
     exp.room += 1;
     if (exp.mode === 'abyss' && exp.room > s.deepestAbyss) {
@@ -978,11 +1093,12 @@ export function useGame() {
     const s = stateRef.current;
     const exp = s.expedition;
     if (!exp || exp.phase !== 'choice') return;
+    const sb = skillBonuses(s);
     s.aw += exp.haulAw;
     s.totalAw += exp.haulAw;
     s.lifetimeAw += exp.haulAw;
     for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
-    gainXp(exp.haulXp);
+    gainXp(exp.haulXp * sb.expeditionXpMult);
     if (exp.mode === 'abyss' && exp.room > s.deepestAbyss) s.deepestAbyss = exp.room;
     if (!s.achievements.includes('delve-1')) {
       s.achievements.push('delve-1');
@@ -1120,6 +1236,29 @@ export function useGame() {
       last = now;
       s.playtime += dt;
 
+      // Auto-click from Automaton skill + Autoclicker perk
+      const sb = skillBonuses(s);
+      const autoRate = sb.autoClickRate + perkStat(s, 'autoclick');
+      if (autoRate > 0) {
+        const autoClicks = autoRate * dt;
+        let autoPower = clickPower(s, comboRef.current);
+        // Auto-clicks can crit too
+        if (Math.random() < gearCrit(s)) autoPower *= critMultVal(s) + sb.critDamageAdd;
+        if (sb.clickGainsProdPct > 0) autoPower += productionPerSec(s) * sb.clickGainsProdPct;
+        const autoGain = autoPower * autoClicks;
+        s.aw += autoGain;
+        s.totalAw += autoGain;
+        s.lifetimeAw += autoGain;
+        s.clicks += Math.floor(autoClicks);
+        // Auto-clicks build combo too
+        if (now - lastClickRef.current < sb.comboDecayMs) comboRef.current += autoClicks * sb.comboBuildMult;
+        else comboRef.current = autoClicks;
+        lastClickRef.current = now;
+        gainXp(autoClicks * 0.6 * sb.xpMult);
+        if (sb.clickXpChance > 0 && Math.random() < sb.clickXpChance * autoClicks) gainXp(5 * sb.xpMult);
+        checkLevelUp();
+      }
+
       const prod = productionPerSec(s);
       if (prod > 0) {
         const gain = prod * dt;
@@ -1132,7 +1271,7 @@ export function useGame() {
 
       // Gear is delve-exclusive now — no passive scavenging
 
-      if (now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
+      if (!skillBonuses(s).comboNoDecay && now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
       if (s.buff && now > s.buff.until) s.buff = null;
       if (s.encounter && s.encounter.until && now > s.encounter.until) {
         pushToast('info', `${s.encounter.name} wandered off...`);
@@ -1148,7 +1287,7 @@ export function useGame() {
         const started = s.playtime > 45 && (s.totalAw > 300 || s.clicks > 40);
         const luck = gearLuck(s);
         if (started && !s.encounter?.isFinale) {
-          if (!s.buff && Math.random() < 0.05 + luck * 0.2) {
+          if (!s.buff && Math.random() < 0.05 + luck * 0.2 + skillBonuses(s).buffChanceBonus) {
             const p: Phenomenon = PHENOMENA[Math.floor(Math.random() * PHENOMENA.length)];
             if (p.effect === 'burst') {
               const amt = Math.max(50, (productionPerSec(s) * 45 + baseClickPower(s) * 25) * skillBonuses(s).burstMult);
@@ -1196,6 +1335,7 @@ export function useGame() {
       if (saveAccum > 5) {
         saveAccum = 0;
         try {
+          s.lastSaved = Date.now();
           localStorage.setItem(SAVE_KEY, JSON.stringify(s));
         } catch {
           /* ignore */
@@ -1207,6 +1347,7 @@ export function useGame() {
     return () => {
       clearInterval(interval);
       try {
+        stateRef.current.lastSaved = Date.now();
         localStorage.setItem(SAVE_KEY, JSON.stringify(stateRef.current));
       } catch {
         /* ignore */

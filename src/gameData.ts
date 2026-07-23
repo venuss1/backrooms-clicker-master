@@ -490,7 +490,7 @@ export const GENERATORS: Generator[] = [
     "desc": "Archive guardian Blanche is a knowledge-focused quest giver and social NPC.",
     "hook": "Reward book recovery, manners, and lore discovery with knowledge and archive access.",
     "baseCost": 18,
-    "baseProd": 0.15,
+    "baseProd": 0.5,
     "rating": 233
   },
   {
@@ -499,7 +499,7 @@ export const GENERATORS: Generator[] = [
     "desc": "Roaming champion who can rescue, duel, train, or accompany the player.",
     "hook": "Use reputation and conduct to decide whether the Red Knight aids or challenges the player.",
     "baseCost": 111.6,
-    "baseProd": 0.765,
+    "baseProd": 2.0,
     "rating": 172
   },
   {
@@ -508,7 +508,7 @@ export const GENERATORS: Generator[] = [
     "desc": "Friendly exploration faction with regiments, divisions, outposts, and discovery work.",
     "hook": "Progress from volunteer expeditions into specialized regiments and outpost command.",
     "baseCost": 691.92,
-    "baseProd": 3.9015,
+    "baseProd": 8.0,
     "rating": 169
   },
   {
