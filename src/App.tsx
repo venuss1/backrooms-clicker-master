@@ -39,7 +39,7 @@ import { fmt, fmtRate } from './format';
 import { SKILL_NODES, BRANCH_INFO, canUnlockNode, skillRank, isNodeVisible, TREE_CENTER, TREE_BOUNDS, skillNodeById, type SkillBranch } from './skillTree';
 import './App.css';
 
-type Tab = 'allies' | 'gear' | 'delve' | 'codex' | 'echoes';
+type Tab = 'allies' | 'gear' | 'delve' | 'codex' | 'echoes' | 'wiki';
 
 const EVENT_ICON: Record<EventKind, string> = {
   cache: '▣',
@@ -59,6 +59,7 @@ export default function App() {
   const [gearSlotFilter, setGearSlotFilter] = useState<GearSlot>('Weapon');
   const [showSettings, setShowSettings] = useState(false);
   const [buyQty, setBuyQty] = useState<1 | 2 | 5 | 'max'>('max');
+  const [wikiLevel, setWikiLevel] = useState<number>(-1); // -1 = all levels
 
   // Skill tree pan/zoom state
   const [treeZoom, setTreeZoom] = useState(0.5);
@@ -204,16 +205,17 @@ export default function App() {
 
           {(() => {
             const elig = eligibleDrops(s);
+            const lvlName = LEVELS[s.levelIndex]?.name ?? 'this depth';
             return (
               <div className="scavenge">
                 <div className="combo-head">
-                  <span>Delve for Gear</span>
-                  <span>{elig.length > 0 ? `${elig.length} item${elig.length > 1 ? 's' : ''} undiscovered` : 'all gear found'}</span>
+                  <span>Delve for Gear at {lvlName}</span>
+                  <span>{elig.length > 0 ? `${elig.length} item${elig.length > 1 ? 's' : ''} to find here` : 'all gear found here'}</span>
                 </div>
                 <div className="combo-sub">
                   {elig.length > 0
-                    ? `Gear is found exclusively in Delve expeditions — push deeper for better items`
-                    : `You've found everything. Push the Abyss for mythic gear.`}
+                    ? `Each depth has unique gear — go back to earlier levels to collect what you missed`
+                    : `All items at this depth found. Explore other depths for more gear.`}
                 </div>
               </div>
             );
@@ -263,6 +265,7 @@ export default function App() {
             <button className={tab === 'gear' ? 'active' : ''} onClick={() => setTab('gear')}>Gear</button>
             <button className={`delve-tab ${tab === 'delve' ? 'active' : ''}`} onClick={() => setTab('delve')}>Delve</button>
             <button className={tab === 'codex' ? 'active' : ''} onClick={() => setTab('codex')}>Codex</button>
+            <button className={`wiki-tab ${tab === 'wiki' ? 'active' : ''}`} onClick={() => setTab('wiki')}>Wiki</button>
             <button className={`end-tab ${tab === 'echoes' ? 'active' : ''}`} onClick={() => setTab('echoes')}>Echoes</button>
           </nav>
 
@@ -319,19 +322,19 @@ export default function App() {
                 </div>
                 <div className="list">
                   {gearBySlot(gearSlotFilter)
+                    .filter((it) => s.gearOwned.includes(it.id))
                     .slice()
-                    .sort((a, b) => a.minDelveRoom - b.minDelveRoom || a.cost - b.cost)
+                    .sort((a, b) => a.levelIndex - b.levelIndex || a.cost - b.cost)
                     .map((it) => {
-                      const owned = s.gearOwned.includes(it.id);
                       const equipped = s.equipped[it.slot] === it.id;
-                                            return (
-                        <div key={it.id} className={`gear-row rar-${it.rarity} ${equipped ? 'equipped' : ''} ${owned ? '' : 'undiscovered'}`}>
+                      return (
+                        <div key={it.id} className={`gear-row rar-${it.rarity} ${equipped ? 'equipped' : ''}`}>
                           <div className="row-main">
                             <div className="row-title">
-                              <span>{owned ? it.name : '??? — undiscovered'}</span>
+                              <span>{it.name}</span>
                               <span className={`rar-badge rar-${it.rarity}`}>{it.rarity}</span>
                             </div>
-                            <p className="row-desc">{owned ? it.hook : `Found in Delve at room ${it.minDelveRoom}${it.abyssOnly ? ' (Abyss only)' : ''}`}</p>
+                            <p className="row-desc">{it.hook}</p>
                             <p className="gear-stats">
                               {it.stats.clickMult > 1 && <span>⚔ ×{it.stats.clickMult.toFixed(2)} click</span>}
                               {it.stats.prodMult > 1 && <span>⚙ ×{it.stats.prodMult.toFixed(2)} prod</span>}
@@ -339,16 +342,15 @@ export default function App() {
                               {it.stats.luck > 0 && <span>🍀 +{Math.round(it.stats.luck * 100)}% luck</span>}
                             </p>
                           </div>
-                          {owned ? (
-                            <button className={`gear-btn ${equipped ? 'unequip' : 'equip'}`} onClick={() => g.equipGear(it.id)}>
-                              {equipped ? 'Unequip' : 'Equip'}
-                            </button>
-                          ) : (
-                            <span className="gear-drop">Delve room {it.minDelveRoom}{it.abyssOnly ? ' (Abyss)' : ''}</span>
-                          )}
+                          <button className={`gear-btn ${equipped ? 'unequip' : 'equip'}`} onClick={() => g.equipGear(it.id)}>
+                            {equipped ? 'Unequip' : 'Equip'}
+                          </button>
                         </div>
                       );
                     })}
+                  {gearBySlot(gearSlotFilter).filter((it) => s.gearOwned.includes(it.id)).length === 0 && (
+                    <p className="muted gear-empty-hint">No {gearSlotFilter} items found yet. Delve to find gear for this slot.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -480,6 +482,66 @@ export default function App() {
                       <span>{Object.values(s.skills).filter((v) => v > 0).length}/{SKILL_NODES.length} nodes · {fmt(s.echoes)} Echoes unspent</span>
                     </span>
                   </button>
+                </div>
+              </div>
+            )}
+
+            {tab === 'wiki' && (
+              <div className="wiki-tab">
+                <div className="wiki-header">
+                  <h3>Item Wiki</h3>
+                  <p className="muted">All {GEAR.length} items in the game. Items are found by delving at their assigned depth.</p>
+                </div>
+                <div className="wiki-level-filter">
+                  <button className={`wiki-lvl-btn ${wikiLevel === -1 ? 'sel' : ''}`} onClick={() => setWikiLevel(-1)}>All</button>
+                  {LEVELS.map((lvl, i) => {
+                    const reached = i <= s.maxLevelReached;
+                    const hasItems = GEAR.some((g) => g.levelIndex === i);
+                    if (!hasItems) return null;
+                    return (
+                      <button
+                        key={lvl.id}
+                        className={`wiki-lvl-btn ${wikiLevel === i ? 'sel' : ''} ${reached ? '' : 'locked'}`}
+                        onClick={() => setWikiLevel(i)}
+                        title={reached ? lvl.name : 'Not yet reached'}
+                      >
+                        {i}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="wiki-items">
+                  {GEAR
+                    .filter((g) => wikiLevel === -1 || g.levelIndex === wikiLevel)
+                    .sort((a, b) => a.levelIndex - b.levelIndex || a.slot.localeCompare(b.slot) || a.cost - b.cost)
+                    .map((it) => {
+                      const owned = s.gearOwned.includes(it.id);
+                      const equipped = s.equipped[it.slot] === it.id;
+                      const lvl = LEVELS[it.levelIndex];
+                      return (
+                        <div key={it.id} className={`wiki-item rar-${it.rarity} ${owned ? 'owned' : ''}`}>
+                          <div className="wiki-item-header">
+                            <span className="wiki-item-name">{owned ? it.name : '???'}</span>
+                            <span className={`rar-badge rar-${it.rarity}`}>{it.rarity}</span>
+                            <span className="wiki-item-slot">{it.slot}</span>
+                          </div>
+                          <p className="wiki-item-desc">{owned ? it.desc : 'Undiscovered — delve to find it.'}</p>
+                          {owned && (
+                            <p className="wiki-item-hook">{it.hook}</p>
+                          )}
+                          <div className="wiki-item-meta">
+                            <span className="wiki-depth">Depth {it.levelIndex} · {lvl?.name ?? '???'}</span>
+                            {equipped && <span className="wiki-equipped">Equipped</span>}
+                          </div>
+                          <div className="wiki-stats">
+                            {it.stats.clickMult > 1 && <span>⚔ ×{it.stats.clickMult.toFixed(2)} click</span>}
+                            {it.stats.prodMult > 1 && <span>⚙ ×{it.stats.prodMult.toFixed(2)} prod</span>}
+                            {it.stats.crit > 0 && <span>✧ +{Math.round(it.stats.crit * 100)}% crit</span>}
+                            {it.stats.luck > 0 && <span>🍀 +{Math.round(it.stats.luck * 100)}% luck</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}

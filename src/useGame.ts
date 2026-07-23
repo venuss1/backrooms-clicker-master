@@ -385,10 +385,9 @@ export function gearBySlot(slot: GearSlot): Gear[] {
   return GEAR.filter((g) => g.slot === slot);
 }
 
-// Gear you can currently find (its drop level is at or above where you are, not yet owned)
+// Gear you can currently find at this level (not yet owned)
 export function eligibleDrops(s: GameState): Gear[] {
-  // Gear is now delve-exclusive; this returns all unowned gear for display purposes
-  return GEAR.filter((g) => !s.gearOwned.includes(g.id));
+  return GEAR.filter((g) => g.levelIndex === s.levelIndex && !s.gearOwned.includes(g.id));
 }
 
 // ---------- Floating click numbers ----------
@@ -708,18 +707,19 @@ export function useGame() {
       const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * skillBonuses(s).expeditionLootMult * mod.lootMult;
       const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus)) * mod.riskMult); };
 
-      // Depth-based gear pool: items require minDelveRoom <= current room number
+      // Level-based gear pool: items only drop at their assigned level (exp.depth)
       const grantExpGear = (force: boolean = false): string | null => {
         const owned = new Set([...s.gearOwned, ...exp.haulGear]);
         const sb = skillBonuses(s);
         let pool = GEAR.filter((g) => {
           if (owned.has(g.id)) return false;
-          if (g.minDelveRoom > roomN) return false;
+          if (g.levelIndex !== exp.depth) return false;
           if (g.abyssOnly && exp.mode !== 'abyss') return false;
           return true;
         });
         if (pool.length === 0) {
-          pool = GEAR.filter((g) => !owned.has(g.id) && (!g.abyssOnly || exp.mode === 'abyss'));
+          // Fallback: any unowned gear at this level (ignoring abyssOnly)
+          pool = GEAR.filter((g) => !owned.has(g.id) && g.levelIndex === exp.depth);
         }
         if (pool.length === 0) return null;
         const pk = weightedGearPick(pool, sb.rarityShift + (force ? 2 : 0));
