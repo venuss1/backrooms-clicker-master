@@ -28,9 +28,13 @@ import {
   abyssMult,
   abyssUnlocked,
   levelPrestigeGate,
+  levelSetComplete,
+  setBonusMult,
+  setBonusInfo,
 } from './useGame';
-import { perkById } from './perks';
+import { perkById, PERKS } from './perks';
 import type { EventKind } from './expedition';
+import { DELVE_MODIFIERS } from './expedition';
 import { GENERATORS, GEAR, LEVELS, FINALE, type GearSlot } from './gameData';
 import { themeForDepth } from './themes';
 import Background from './Background';
@@ -39,7 +43,7 @@ import { fmt, fmtRate } from './format';
 import { SKILL_NODES, BRANCH_INFO, canUnlockNode, skillRank, isNodeVisible, TREE_CENTER, TREE_BOUNDS, skillNodeById, type SkillBranch } from './skillTree';
 import './App.css';
 
-type Tab = 'allies' | 'gear' | 'delve' | 'codex' | 'echoes' | 'wiki';
+type Tab = 'allies' | 'gear' | 'delve' | 'codex' | 'echoes';
 
 const EVENT_ICON: Record<EventKind, string> = {
   cache: '▣',
@@ -58,6 +62,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('allies');
   const [gearSlotFilter, setGearSlotFilter] = useState<GearSlot>('Weapon');
   const [showSettings, setShowSettings] = useState(false);
+  const [showWiki, setShowWiki] = useState(false);
+  const [wikiTab, setWikiTab] = useState<'items' | 'mechanics' | 'levels' | 'expeditions' | 'skills' | 'perks'>('items');
   const [buyQty, setBuyQty] = useState<1 | 2 | 5 | 'max'>('max');
   const [wikiLevel, setWikiLevel] = useState<number>(-1); // -1 = all levels
 
@@ -135,6 +141,9 @@ export default function App() {
           </div>
         </div>
         <div className="settings">
+          <button className="toggle on" onClick={() => setShowWiki(true)} title="Wiki">
+            {'\u{1F4D6}'}
+          </button>
           <button className="toggle on" onClick={() => setShowSettings(true)} title="Settings">
             {'\u2699'}
           </button>
@@ -265,7 +274,6 @@ export default function App() {
             <button className={tab === 'gear' ? 'active' : ''} onClick={() => setTab('gear')}>Gear</button>
             <button className={`delve-tab ${tab === 'delve' ? 'active' : ''}`} onClick={() => setTab('delve')}>Delve</button>
             <button className={tab === 'codex' ? 'active' : ''} onClick={() => setTab('codex')}>Codex</button>
-            <button className={`wiki-tab ${tab === 'wiki' ? 'active' : ''}`} onClick={() => setTab('wiki')}>Wiki</button>
             <button className={`end-tab ${tab === 'echoes' ? 'active' : ''}`} onClick={() => setTab('echoes')}>Echoes</button>
           </nav>
 
@@ -308,6 +316,12 @@ export default function App() {
 
             {tab === 'gear' && (
               <div className="gear-tab">
+                {setBonusInfo(s).count > 0 && (
+                  <div className="set-bonus-banner">
+                    <span className="sbb-icon">✦</span>
+                    <span className="sbb-text">{setBonusInfo(s).count} complete set{setBonusInfo(s).count > 1 ? 's' : ''} → ×{setBonusMult(s).toFixed(3)} to all output</span>
+                  </div>
+                )}
                 <div className="slots">
                   {SLOTS.map((slot) => {
                     const eqId = s.equipped[slot];
@@ -428,6 +442,7 @@ export default function App() {
                   {abyssUnlocked(s) && <div><span>Deepest Abyss</span><b>{s.deepestAbyss}</b></div>}
                   <div><span>Allies</span><b>{allyCount(s)}</b></div>
                   <div><span>Gear owned</span><b>{s.gearOwned.length} / {GEAR.length}</b></div>
+                  <div><span>Complete sets</span><b>{setBonusInfo(s).count} / {LEVELS.length} (×{setBonusMult(s).toFixed(3)})</b></div>
                   <div><span>Escapes</span><b>{s.defeated.length}</b></div>
                   <div><span>Clicks</span><b>{s.clicks}</b></div>
                   <div><span>Lifetime AW</span><b>{fmt(s.lifetimeAw)}</b></div>
@@ -482,66 +497,6 @@ export default function App() {
                       <span>{Object.values(s.skills).filter((v) => v > 0).length}/{SKILL_NODES.length} nodes · {fmt(s.echoes)} Echoes unspent</span>
                     </span>
                   </button>
-                </div>
-              </div>
-            )}
-
-            {tab === 'wiki' && (
-              <div className="wiki-tab">
-                <div className="wiki-header">
-                  <h3>Item Wiki</h3>
-                  <p className="muted">All {GEAR.length} items in the game. Items are found by delving at their assigned depth.</p>
-                </div>
-                <div className="wiki-level-filter">
-                  <button className={`wiki-lvl-btn ${wikiLevel === -1 ? 'sel' : ''}`} onClick={() => setWikiLevel(-1)}>All</button>
-                  {LEVELS.map((lvl, i) => {
-                    const reached = i <= s.maxLevelReached;
-                    const hasItems = GEAR.some((g) => g.levelIndex === i);
-                    if (!hasItems) return null;
-                    return (
-                      <button
-                        key={lvl.id}
-                        className={`wiki-lvl-btn ${wikiLevel === i ? 'sel' : ''} ${reached ? '' : 'locked'}`}
-                        onClick={() => setWikiLevel(i)}
-                        title={reached ? lvl.name : 'Not yet reached'}
-                      >
-                        {i}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="wiki-items">
-                  {GEAR
-                    .filter((g) => wikiLevel === -1 || g.levelIndex === wikiLevel)
-                    .sort((a, b) => a.levelIndex - b.levelIndex || a.slot.localeCompare(b.slot) || a.cost - b.cost)
-                    .map((it) => {
-                      const owned = s.gearOwned.includes(it.id);
-                      const equipped = s.equipped[it.slot] === it.id;
-                      const lvl = LEVELS[it.levelIndex];
-                      return (
-                        <div key={it.id} className={`wiki-item rar-${it.rarity} ${owned ? 'owned' : ''}`}>
-                          <div className="wiki-item-header">
-                            <span className="wiki-item-name">{owned ? it.name : '???'}</span>
-                            <span className={`rar-badge rar-${it.rarity}`}>{it.rarity}</span>
-                            <span className="wiki-item-slot">{it.slot}</span>
-                          </div>
-                          <p className="wiki-item-desc">{owned ? it.desc : 'Undiscovered — delve to find it.'}</p>
-                          {owned && (
-                            <p className="wiki-item-hook">{it.hook}</p>
-                          )}
-                          <div className="wiki-item-meta">
-                            <span className="wiki-depth">Depth {it.levelIndex} · {lvl?.name ?? '???'}</span>
-                            {equipped && <span className="wiki-equipped">Equipped</span>}
-                          </div>
-                          <div className="wiki-stats">
-                            {it.stats.clickMult > 1 && <span>⚔ ×{it.stats.clickMult.toFixed(2)} click</span>}
-                            {it.stats.prodMult > 1 && <span>⚙ ×{it.stats.prodMult.toFixed(2)} prod</span>}
-                            {it.stats.crit > 0 && <span>✧ +{Math.round(it.stats.crit * 100)}% crit</span>}
-                            {it.stats.luck > 0 && <span>🍀 +{Math.round(it.stats.luck * 100)}% luck</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
                 </div>
               </div>
             )}
@@ -937,6 +892,286 @@ export default function App() {
       <div className="toasts">
         {g.toasts.map((t) => (<div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>))}
       </div>
+
+      {showWiki && (
+        <div className="wiki-overlay" onClick={() => setShowWiki(false)}>
+          <div className="wiki-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="wiki-modal-header">
+              <h2>📖 Wiki</h2>
+              <button className="wiki-close" onClick={() => setShowWiki(false)}>✕</button>
+            </div>
+            <nav className="wiki-nav">
+              <button className={wikiTab === 'items' ? 'active' : ''} onClick={() => setWikiTab('items')}>Items</button>
+              <button className={wikiTab === 'mechanics' ? 'active' : ''} onClick={() => setWikiTab('mechanics')}>Mechanics</button>
+              <button className={wikiTab === 'levels' ? 'active' : ''} onClick={() => setWikiTab('levels')}>Levels</button>
+              <button className={wikiTab === 'expeditions' ? 'active' : ''} onClick={() => setWikiTab('expeditions')}>Expeditions</button>
+              <button className={wikiTab === 'skills' ? 'active' : ''} onClick={() => setWikiTab('skills')}>Skills</button>
+              <button className={wikiTab === 'perks' ? 'active' : ''} onClick={() => setWikiTab('perks')}>Perks</button>
+            </nav>
+            <div className="wiki-content">
+              {wikiTab === 'items' && (
+                <div className="wiki-items-page">
+                  <div className="wiki-set-bonus-banner">
+                    <span className="wsbb-icon">✦</span>
+                    <span className="wsbb-text">
+                      <b>Set Bonuses:</b> Collect all items at a depth for a permanent +5% multiplier to all output (compounding). You have <b>{setBonusInfo(s).count}</b> complete sets → ×<b>{setBonusMult(s).toFixed(3)}</b> total bonus
+                    </span>
+                  </div>
+                  <div className="wiki-level-filter">
+                    <button className={`wiki-lvl-btn ${wikiLevel === -1 ? 'sel' : ''}`} onClick={() => setWikiLevel(-1)}>All</button>
+                    {LEVELS.map((lvl, i) => {
+                      const reached = i <= s.maxLevelReached;
+                      const hasItems = GEAR.some((g) => g.levelIndex === i);
+                      if (!hasItems) return null;
+                      const complete = levelSetComplete(s, i);
+                      const ownedCount = GEAR.filter((g) => g.levelIndex === i && s.gearOwned.includes(g.id)).length;
+                      const totalCount = GEAR.filter((g) => g.levelIndex === i).length;
+                      return (
+                        <button
+                          key={lvl.id}
+                          className={`wiki-lvl-btn ${wikiLevel === i ? 'sel' : ''} ${reached ? '' : 'locked'} ${complete ? 'complete' : ''}`}
+                          onClick={() => setWikiLevel(i)}
+                          title={reached ? `${lvl.name} (${ownedCount}/${totalCount})` : 'Not yet reached'}
+                        >
+                          {i}{complete ? '✦' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="wiki-items-grid">
+                    {GEAR
+                      .filter((g) => wikiLevel === -1 || g.levelIndex === wikiLevel)
+                      .sort((a, b) => a.levelIndex - b.levelIndex || a.cost - b.cost)
+                      .map((it) => {
+                        const owned = s.gearOwned.includes(it.id);
+                        const equipped = s.equipped[it.slot] === it.id;
+                        const lvl = LEVELS[it.levelIndex];
+                        return (
+                          <div key={it.id} className={`wiki-item-card rar-${it.rarity} ${owned ? 'owned' : ''}`}>
+                            <div className="wic-glow" />
+                            <div className="wic-header">
+                              <span className={`wic-rarity rar-badge rar-${it.rarity}`}>{it.rarity}</span>
+                              <span className="wic-slot">{it.slot}</span>
+                            </div>
+                            <span className="wic-name">{owned ? it.name : '???'}</span>
+                            <p className="wic-desc">{owned ? it.desc : 'Undiscovered — delve at this depth to find it.'}</p>
+                            {owned && <p className="wic-hook">{it.hook}</p>}
+                            <div className="wic-depth">Depth {it.levelIndex} · {lvl?.name ?? '???'}</div>
+                            {equipped && <span className="wic-equipped">Equipped</span>}
+                            <div className="wic-stats">
+                              {it.stats.clickMult > 1 && <div className="wic-stat"><span className="gs-icon">⚡</span><span className="gs-val">+{((it.stats.clickMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Click</span></div>}
+                              {it.stats.prodMult > 1 && <div className="wic-stat"><span className="gs-icon">⚙</span><span className="gs-val">+{((it.stats.prodMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Prod</span></div>}
+                              {it.stats.luck > 0 && <div className="wic-stat"><span className="gs-icon">🍀</span><span className="gs-val">+{(it.stats.luck * 100).toFixed(0)}%</span><span className="gs-label">Luck</span></div>}
+                              {it.stats.crit > 0 && <div className="wic-stat"><span className="gs-icon">✧</span><span className="gs-val">+{(it.stats.crit * 100).toFixed(0)}%</span><span className="gs-label">Crit</span></div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {wikiTab === 'mechanics' && (
+                <div className="wiki-mechanics-page">
+                  <div className="wiki-section">
+                    <h3>💧 Almond Water (AW)</h3>
+                    <p>The main currency. Earned by clicking and from ally production. Used to buy allies and unlock deeper levels.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>👆 Clicking</h3>
+                    <p>Click the big button to earn AW. Each click awards <code>baseClickPower × comboMult</code>.</p>
+                    <p><b>Base Click Power</b> = 1 × gearClickMult × levelMult × skillClickMult × (1 + perkClick) × metaMult</p>
+                    <p><b>Critical hits</b> deal ×{critMultVal(s)} damage. Crit chance = sum of equipped gear crit + perk crit + skill crit (capped at 75%).</p>
+                    <p><b>Combo</b> builds with each click (+1 per click, ×1.6 faster with Frenzy). Combo multiplier = <code>1 + (1 - e^(-combo/30)) × {7 + skillBonuses(s).comboCapBonus}</code>. Decays after {skillBonuses(s).comboDecayMs}ms without clicking.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>⚙️ Ally Production</h3>
+                    <p>Allies generate AW passively. <b>Production/sec</b> = sum(count × baseProd) × levelMult × gearProdMult × buffProdMult × skillProdMult × synergyMult × singularityMult × (1 + perkProd) × metaMult</p>
+                    <p><b>Synergy:</b> +5% production for each different ally type you own (with Synergy skill).</p>
+                    <p><b>Singularity:</b> Production × (1 + Explorer level × 0.05) with Singularity skill.</p>
+                    <p><b>Ally cost:</b> baseCost × {skillBonuses(s).allyCostGrowth}^owned. Growth reduced to 1.12 with Efficiency skill.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>⬡ Explorer Levels & XP</h3>
+                    <p>Gain XP from clicking, delving, and events. Each level gives +2% to all output (click power AND production).</p>
+                    <p><b>XP needed:</b> floor(80 × 1.25^level). So level 0→1 needs 80 XP, level 10→11 needs 745 XP.</p>
+                    <p>Every 2 Explorer levels, you get a <b>perk token</b> to choose a permanent perk.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>📊 Meta Multiplier</h3>
+                    <p>Applied to both click power and production:</p>
+                    <p><code>metaMult = xpLevelMult × (1 + perkAW) × abyssMult × skillAWMult × setBonusMult</code></p>
+                    <p>Where:</p>
+                    <ul>
+                      <li><b>xpLevelMult</b> = 1 + Explorer level × 0.02</li>
+                      <li><b>perkAW</b> = sum of Hoard/Greed perks (diminishing)</li>
+                      <li><b>abyssMult</b> = 1 + min(cap, deepestAbyss) × 0.02 (default cap 50 = +100%)</li>
+                      <li><b>setBonusMult</b> = 1.05^(completed sets) — collect all items at a depth for +5% each</li>
+                    </ul>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>✦ Echoes & Rebirth</h3>
+                    <p><b>Noclip Out</b> (rebirth) resets AW, allies, and depth, but keeps gear, skills, XP, perks, and Echoes.</p>
+                    <p><b>Echoes earned</b> = floor(cbrt(lifetimeAW / 100,000)) - totalEchoes. Cube root formula means diminishing returns.</p>
+                    <p>Spend Echoes on the <b>Skill Tree</b> (3 branches: Wanderer, Architect, Noclipper).</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>🎯 Luck & Crit</h3>
+                    <p><b>Luck</b> = sum of equipped gear luck × gearStatMult + buff luck + perk luck + skill luck. Affects event rates, gear drop rates, and encounter frequency.</p>
+                    <p><b>Crit</b> = sum of equipped gear crit × gearStatMult + perk crit + skill crit (capped 75%). Crit damage ×{critMultVal(s)} (×10 with Execution skill).</p>
+                    <p><b>Gear Stat Mult</b> = 1.0 base, ×1.25 with Scavenger, ×1.75 with both Scavenger + Hoarder.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>🌊 Random Events</h3>
+                    <p>Every second, the game rolls for random events (after 45s of playtime):</p>
+                    <ul>
+                      <li><b>Phenomena</b> (5% + luck×20% chance if no buff active): AW burst or temporary buff (×2 or ×3 production, +25% luck, etc.) for 18s</li>
+                      <li><b>Encounters</b> (2% + luck×3% chance if no encounter): Click-target event with timer. Boss encounters have bigger rewards.</li>
+                    </ul>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>🏆 Achievements</h3>
+                    <p>{ACHIEVEMENTS.length} achievements to unlock. Checked automatically as you play. View in the Codex tab.</p>
+                  </div>
+                </div>
+              )}
+
+              {wikiTab === 'levels' && (
+                <div className="wiki-levels-page">
+                  <p className="wiki-intro">There are {LEVELS.length} levels. Descend by earning enough AW. Deeper levels have higher multipliers but cost more. Some levels require rebirths to unlock.</p>
+                  <div className="wiki-levels-list">
+                    {LEVELS.map((lvl, i) => {
+                      const reached = i <= s.maxLevelReached;
+                      const current = i === s.levelIndex;
+                      const gate = levelPrestigeGate(i);
+                      const gearCount = GEAR.filter((g) => g.levelIndex === i).length;
+                      const ownedHere = GEAR.filter((g) => g.levelIndex === i && s.gearOwned.includes(g.id)).length;
+                      const complete = levelSetComplete(s, i);
+                      return (
+                        <div key={lvl.id} className={`wiki-level-row ${current ? 'current' : ''} ${reached ? '' : 'locked'}`}>
+                          <div className="wlr-depth">{i}</div>
+                          <div className="wlr-info">
+                            <span className="wlr-name">{lvl.name}</span>
+                            <span className="wlr-scene">Scene: {lvl.scene} · Mult ×{lvl.mult}</span>
+                            <span className="wlr-unlock">Unlock: {fmt(lvl.unlockCost)} AW{gate > 0 ? ` · requires ${gate} rebirth${gate > 1 ? 's' : ''}` : ''}</span>
+                          </div>
+                          <div className="wlr-gear">
+                            <span className={`wlr-gear-count ${complete ? 'complete' : ''}`}>{ownedHere}/{gearCount} gear{complete ? ' ✦' : ''}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {wikiTab === 'expeditions' && (
+                <div className="wiki-expeditions-page">
+                  <div className="wiki-section">
+                    <h3>🗺️ Expeditions (Delves)</h3>
+                    <p>Slip into the walls to explore room by room. Loot stays <b>unbanked</b> until you extract — get caught and it's all gone. Every 5th room is a <b>boss</b> with guaranteed gear.</p>
+                    <p><b>Abyss mode</b> unlocks after defeating the Finale. Higher risk, higher rewards, mythic gear.</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>🎲 Delve Modifiers</h3>
+                    <p>40% chance of a non-standard modifier each delve:</p>
+                    <div className="wiki-modifiers-list">
+                      {DELVE_MODIFIERS.map((m) => (
+                        <div key={m.id} className="wiki-modifier-row">
+                          <span className="wm-name">{m.name}</span>
+                          <span className="wm-desc">{m.desc}</span>
+                          <div className="wm-stats">
+                            <span>Loot ×{m.lootMult}</span>
+                            <span>Risk ×{m.riskMult}</span>
+                            <span>Gear +{Math.round(m.gearBonus * 100)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>📦 Event Types</h3>
+                    <p>Each room generates a random event. Entity encounters become more common the deeper you go.</p>
+                    <ul>
+                      <li><b>☠ Entity</b> — Fight (high risk/reward), Sneak (moderate), or Bribe (costs AW). Fight win chance ~45% + crit + luck.</li>
+                      <li><b>▣ Cache</b> — Open (loot + risk) or Search carefully (less loot, no risk).</li>
+                      <li><b>↯ Fork</b> — 60% chance of good outcome, 40% trap.</li>
+                      <li><b>⛩ Shrine</b> — Attune (safe XP+AW) or Harvest (high reward, risk surge).</li>
+                      <li><b>💎 Treasure</b> — Pry (high gear chance, +risk) or Leave.</li>
+                      <li><b>⚡ Trap</b> — Disarm (skill check) or Wait (safe).</li>
+                      <li><b>⚗ Altar</b> — Offer AW (reduce risk), Offer gear (reroll item), or Ignore.</li>
+                      <li><b>👑 Boss</b> — Every 5th room. Guaranteed gear on win. Death loses everything.</li>
+                    </ul>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>⚔️ Combat Calculations</h3>
+                    <p><b>Entity fight win chance</b> = clamp(15-92%, 45% + gearCrit + luck×0.5 + expBonus×0.3 - room×0.02)</p>
+                    <p><b>Boss fight win chance</b> = clamp(20-85%, 40% + gearCrit + luck×0.5 + expBonus×0.3 - room×0.015)</p>
+                    <p><b>Sneak success</b> = clamp(10-90%, 42% + luck + expBonus×0.3 - room×0.03)</p>
+                    <p><b>Disarm success</b> = clamp(20-85%, 45% + luck + expBonus×0.3)</p>
+                    <p><b>Loot base</b> = (prod×12 + click×25 + 100) × roomNumber × (abyss?2.2:1) × (1+expBonus) × expeditionLootMult × modifier.lootMult</p>
+                    <p><b>Ambush risk</b> = starts at 3% (8% abyss), increases per event. Risk check on "Delve deeper".</p>
+                  </div>
+                  <div className="wiki-section">
+                    <h3>🎁 Gear Drops</h3>
+                    <p>Gear only drops at the depth you're delving. Each level has 5 unique items. Go back to earlier levels to collect missed gear.</p>
+                    <p><b>Drop chances</b> vary by event: Boss = guaranteed, Altar = guaranteed (forces rare+), Treasure = 60%+luck, Entity fight = 35%+luck, Shrine harvest = 40%+luck, Cache = 25%+luck, Fork = 20%+luck, Trap = 15%+luck.</p>
+                    <p><b>Rarity weights</b> (normal): Common 45, Uncommon 28, Rare 16, Epic 8, Legendary 3, Mythic 0. Shifted (boss/altar): Common 25, Uncommon 27, Rare 22, Epic 14, Legendary 8, Mythic 4.</p>
+                  </div>
+                </div>
+              )}
+
+              {wikiTab === 'skills' && (
+                <div className="wiki-skills-page">
+                  <p className="wiki-intro">Spend Echoes on 3 skill branches. Each branch has 5 tiers of nodes.</p>
+                  {(['wanderer', 'architect', 'noclipper'] as SkillBranch[]).map((branch) => (
+                    <div key={branch} className="wiki-section">
+                      <h3>{BRANCH_INFO[branch].icon} {BRANCH_INFO[branch].name}</h3>
+                      <p className="muted">{BRANCH_INFO[branch].desc}</p>
+                      <div className="wiki-skill-list">
+                        {SKILL_NODES.filter((n) => n.branch === branch).map((node) => {
+                          const rank = skillRank(s.skills, node.id);
+                          return (
+                            <div key={node.id} className={`wiki-skill-row ${rank > 0 ? 'owned' : ''}`}>
+                              <span className="wsr-icon">{node.icon}</span>
+                              <div className="wsr-info">
+                                <span className="wsr-name">{node.name} <span className="wsr-rank">({rank}/{node.maxRanks})</span></span>
+                                <span className="wsr-desc">{node.desc}</span>
+                                <span className="wsr-cost">Cost: {node.cost} Echoes · Tier {node.tier}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {wikiTab === 'perks' && (
+                <div className="wiki-perks-page">
+                  <p className="wiki-intro">Perks are chosen every 2 Explorer levels. Duplicate picks have diminishing returns: n copies give val × (1 - 0.7^n) / 0.3.</p>
+                  <div className="wiki-perk-list">
+                    {PERKS.map((p) => {
+                      const owned = s.perks.filter((id) => id === p.id).length;
+                      return (
+                        <div key={p.id} className={`wiki-perk-row ${owned > 0 ? 'owned' : ''}`}>
+                          <span className="wpr-icon">{p.icon}</span>
+                          <div className="wpr-info">
+                            <span className="wpr-name">{p.name} <span className="wpr-tier">T{p.tier}</span></span>
+                            <span className="wpr-desc">{p.desc}</span>
+                            <span className="wpr-owned">{owned > 0 ? `${owned} owned` : 'not owned'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSettings && (
         <div className="perk-overlay" onClick={() => setShowSettings(false)}>

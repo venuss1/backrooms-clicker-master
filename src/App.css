@@ -1058,36 +1058,115 @@
 .settings-close { display: block; margin: 20px auto 0; border: none; border-radius: 12px; padding: 12px 40px; font-weight: 800; font-size: 14px; cursor: pointer; background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04)); color: var(--text); border: 1px solid var(--line); transition: all 0.2s; }
 .settings-close:hover { border-color: var(--accent); color: var(--accent); }
 
-/* ---------- Wiki tab ---------- */
-.wiki-tab { display: flex; flex-direction: column; gap: 14px; }
-.wiki-header { text-align: center; }
-.wiki-header h3 { font-size: 18px; font-weight: 900; letter-spacing: 2px; margin: 0 0 4px; }
-.wiki-header .muted { font-size: 12px; opacity: 0.5; margin: 0; }
-.wiki-level-filter { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
-.wiki-lvl-btn { min-width: 32px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+/* ---------- Wiki full-screen overlay ---------- */
+.wiki-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); animation: fade 0.2s; }
+.wiki-modal { position: relative; width: min(1100px, 95vw); height: min(85vh, 900px); display: flex; flex-direction: column; background: linear-gradient(160deg, rgba(16,20,28,0.98), rgba(6,8,14,0.99)); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; animation: revealPop 0.3s ease; }
+.wiki-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,0.3); }
+.wiki-modal-header h2 { font-size: 20px; font-weight: 900; margin: 0; }
+.wiki-close { border: none; background: rgba(255,255,255,0.06); border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; color: var(--text); transition: all 0.2s; }
+.wiki-close:hover { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+.wiki-nav { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,0.2); }
+.wiki-nav button { padding: 12px 18px; background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 700; opacity: 0.45; transition: all 0.2s; }
+.wiki-nav button:hover { opacity: 0.8; background: rgba(255,255,255,0.03); }
+.wiki-nav button.active { opacity: 1; color: #5fb2ff; border-bottom-color: #5fb2ff; background: rgba(95,178,255,0.06); }
+.wiki-content { flex: 1; overflow-y: auto; padding: 20px; }
+.wiki-content::-webkit-scrollbar { width: 6px; }
+.wiki-content::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+/* Wiki set bonus banner */
+.wiki-set-bonus-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(255,184,77,0.1), rgba(255,184,77,0.04)); border: 1px solid rgba(255,184,77,0.2); margin-bottom: 14px; }
+.wsbb-icon { font-size: 24px; }
+.wsbb-text { font-size: 13px; line-height: 1.5; }
+.wsbb-text b { color: var(--c-legendary); }
+
+/* Wiki level filter */
+.wiki-level-filter { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 16px; }
+.wiki-lvl-btn { min-width: 36px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
 .wiki-lvl-btn:hover { border-color: var(--line-bright); background: rgba(255,255,255,0.05); }
 .wiki-lvl-btn.sel { border-color: #5fb2ff; background: rgba(95,178,255,0.15); color: #5fb2ff; box-shadow: 0 0 12px rgba(95,178,255,0.2); }
 .wiki-lvl-btn.locked { opacity: 0.3; cursor: not-allowed; }
-.wiki-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.wiki-item { padding: 14px; border-radius: 14px; border: 1px solid var(--line); border-left-width: 4px; background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.15)); transition: all 0.2s; }
-.wiki-item:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-.wiki-item.owned { background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)); }
-.wiki-item.rar-common { border-left-color: var(--c-common); }
-.wiki-item.rar-uncommon { border-left-color: var(--c-uncommon); }
-.wiki-item.rar-rare { border-left-color: var(--c-rare); }
-.wiki-item.rar-epic { border-left-color: var(--c-epic); }
-.wiki-item.rar-legendary { border-left-color: var(--c-legendary); }
-.wiki-item.rar-mythic { border-left-color: var(--c-mythic); }
-.wiki-item-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.wiki-item-name { font-size: 14px; font-weight: 800; color: #fff; }
-.wiki-item-slot { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; margin-left: auto; }
-.wiki-item-desc { font-size: 11px; opacity: 0.6; line-height: 1.4; margin: 0 0 4px; }
-.wiki-item-hook { font-size: 10px; font-style: italic; opacity: 0.4; margin: 0 0 6px; }
-.wiki-item-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.wiki-depth { font-size: 10px; opacity: 0.4; }
-.wiki-equipped { font-size: 9px; font-weight: 800; text-transform: uppercase; color: var(--good); background: rgba(126,224,160,0.15); padding: 2px 8px; border-radius: 999px; }
-.wiki-stats { display: flex; flex-wrap: wrap; gap: 4px; }
-.wiki-stats span { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,0.06); color: var(--good); }
+.wiki-lvl-btn.complete { border-color: var(--c-legendary); color: var(--c-legendary); box-shadow: 0 0 10px rgba(255,184,77,0.2); }
+
+/* Wiki item cards (popup-style) */
+.wiki-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.wiki-item-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 16px; border: 2px solid; background: linear-gradient(160deg, rgba(16,20,28,0.9), rgba(6,8,14,0.95)); overflow: hidden; transition: all 0.2s; }
+.wiki-item-card:hover { transform: translateY(-3px); }
+.wiki-item-card.owned { background: linear-gradient(160deg, rgba(20,28,40,0.9), rgba(10,14,22,0.95)); }
+.wiki-item-card.rar-common { border-color: var(--c-common); }
+.wiki-item-card.rar-uncommon { border-color: var(--c-uncommon); box-shadow: 0 0 12px rgba(126,224,160,0.1); }
+.wiki-item-card.rar-rare { border-color: var(--c-rare); box-shadow: 0 0 16px rgba(95,178,255,0.15); }
+.wiki-item-card.rar-epic { border-color: var(--c-epic); box-shadow: 0 0 20px rgba(199,155,255,0.2); }
+.wiki-item-card.rar-legendary { border-color: var(--c-legendary); box-shadow: 0 0 24px rgba(255,184,77,0.25); }
+.wiki-item-card.rar-mythic { border-color: var(--c-mythic); box-shadow: 0 0 30px rgba(255,77,109,0.3); }
+.wic-glow { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); pointer-events: none; }
+.wic-header { display: flex; align-items: center; gap: 6px; }
+.wic-slot { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; margin-left: auto; }
+.wic-name { font-size: 16px; font-weight: 900; color: #fff; }
+.wic-desc { font-size: 11px; opacity: 0.6; line-height: 1.4; margin: 0; }
+.wic-hook { font-size: 10px; font-style: italic; opacity: 0.35; margin: 0; }
+.wic-depth { font-size: 10px; opacity: 0.4; }
+.wic-equipped { font-size: 9px; font-weight: 800; text-transform: uppercase; color: var(--good); background: rgba(126,224,160,0.15); padding: 2px 8px; border-radius: 999px; align-self: flex-start; }
+.wic-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.wic-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.05); }
+
+/* Wiki mechanics page */
+.wiki-mechanics-page { max-width: 700px; margin: 0 auto; }
+.wiki-section { padding: 16px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); margin-bottom: 12px; }
+.wiki-section h3 { font-size: 16px; font-weight: 800; margin: 0 0 8px; }
+.wiki-section p { font-size: 13px; line-height: 1.6; margin: 4px 0; opacity: 0.85; }
+.wiki-section code { font-family: monospace; font-size: 12px; background: rgba(95,178,255,0.1); color: #5fb2ff; padding: 2px 6px; border-radius: 4px; }
+.wiki-section ul { margin: 4px 0; padding-left: 20px; }
+.wiki-section li { font-size: 13px; line-height: 1.6; opacity: 0.8; }
+.wiki-intro { font-size: 14px; opacity: 0.6; margin-bottom: 16px; line-height: 1.5; }
+
+/* Wiki levels page */
+.wiki-levels-list { display: flex; flex-direction: column; gap: 6px; }
+.wiki-level-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); transition: all 0.2s; }
+.wiki-level-row:hover { border-color: var(--line-bright); }
+.wiki-level-row.current { border-color: var(--accent); box-shadow: 0 0 16px rgba(255,226,122,0.15); }
+.wiki-level-row.locked { opacity: 0.4; }
+.wlr-depth { font-size: 20px; font-weight: 900; min-width: 36px; text-align: center; color: var(--accent); }
+.wlr-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.wlr-name { font-size: 14px; font-weight: 700; }
+.wlr-scene { font-size: 11px; opacity: 0.5; }
+.wlr-unlock { font-size: 11px; opacity: 0.4; }
+.wlr-gear-count { font-size: 12px; font-weight: 700; }
+.wlr-gear-count.complete { color: var(--c-legendary); }
+
+/* Wiki expeditions page */
+.wiki-modifiers-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.wiki-modifier-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); }
+.wm-name { font-size: 13px; font-weight: 800; min-width: 140px; }
+.wm-desc { font-size: 11px; opacity: 0.5; flex: 1; }
+.wm-stats { display: flex; gap: 8px; }
+.wm-stats span { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); }
+
+/* Wiki skills page */
+.wiki-skill-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.wiki-skill-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); transition: all 0.2s; }
+.wiki-skill-row.owned { border-color: rgba(126,224,160,0.3); background: rgba(126,224,160,0.05); }
+.wsr-icon { font-size: 20px; }
+.wsr-info { display: flex; flex-direction: column; gap: 2px; }
+.wsr-name { font-size: 13px; font-weight: 700; }
+.wsr-rank { font-size: 11px; opacity: 0.5; }
+.wsr-desc { font-size: 11px; opacity: 0.6; }
+.wsr-cost { font-size: 10px; opacity: 0.4; }
+
+/* Wiki perks page */
+.wiki-perk-list { display: flex; flex-direction: column; gap: 6px; }
+.wiki-perk-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); transition: all 0.2s; }
+.wiki-perk-row.owned { border-color: rgba(255,226,122,0.3); background: rgba(255,226,122,0.05); }
+.wpr-icon { font-size: 20px; }
+.wpr-info { display: flex; flex-direction: column; gap: 2px; }
+.wpr-name { font-size: 13px; font-weight: 700; }
+.wpr-tier { font-size: 10px; opacity: 0.4; }
+.wpr-desc { font-size: 11px; opacity: 0.6; }
+.wpr-owned { font-size: 10px; opacity: 0.4; }
 
 /* ---------- Gear empty hint ---------- */
 .gear-empty-hint { text-align: center; padding: 30px 14px; font-size: 13px; opacity: 0.4; }
+
+/* ---------- Set bonus banner (gear tab) ---------- */
+.set-bonus-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(255,184,77,0.1), rgba(255,184,77,0.04)); border: 1px solid rgba(255,184,77,0.2); }
+.sbb-icon { font-size: 18px; }
+.sbb-text { font-size: 12px; font-weight: 700; color: var(--c-legendary); }

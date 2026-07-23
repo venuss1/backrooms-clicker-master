@@ -284,7 +284,36 @@ export function abyssMult(s: GameState): number {
 // Combined meta multiplier applied to both click power and production
 function metaMult(s: GameState): number {
   const sb = skillBonuses(s);
-  return xpLevelMult(s) * (1 + perkStat(s, 'aw')) * abyssMult(s) * sb.awMult;
+  return xpLevelMult(s) * (1 + perkStat(s, 'aw')) * abyssMult(s) * sb.awMult * setBonusMult(s);
+}
+
+// ---------- Set Bonuses ----------
+// Collecting all items at a depth grants a passive multiplier (no equipping needed)
+export interface SetBonus { levelIndex: number; mult: number; name: string; }
+
+export function levelSetComplete(s: GameState, levelIndex: number): boolean {
+  const items = GEAR.filter((g) => g.levelIndex === levelIndex);
+  if (items.length === 0) return false;
+  return items.every((g) => s.gearOwned.includes(g.id));
+}
+
+export function completedSets(s: GameState): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (levelSetComplete(s, i)) result.push(i);
+  }
+  return result;
+}
+
+// Each completed set adds +5% multiplier (compounding)
+export function setBonusMult(s: GameState): number {
+  const count = completedSets(s).length;
+  return Math.pow(1.05, count);
+}
+
+export function setBonusInfo(s: GameState): { count: number; mult: number; sets: number[] } {
+  const sets = completedSets(s);
+  return { count: sets.length, mult: setBonusMult(s), sets };
 }
 
 export function perkPct(s: GameState, key: PerkKey): number {
@@ -929,6 +958,22 @@ export function useGame() {
     rerender();
   }, [checkAchievements, rerender]);
 
+  const checkSetBonuses = useCallback(() => {
+    const s = stateRef.current;
+    for (let i = 0; i < LEVELS.length; i++) {
+      if (levelSetComplete(s, i)) {
+        const key = `set-${i}`;
+        if (!s.achievements.includes(key)) {
+          s.achievements.push(key);
+          const mult = setBonusMult(s);
+          const lvlName = LEVELS[i]?.name ?? `Depth ${i}`;
+          pushToast('achieve', `SET COMPLETE: ${lvlName}! +5% to all output (total ×${mult.toFixed(2)})`);
+          if (s.settings.sound) sfx.prestige();
+        }
+      }
+    }
+  }, [pushToast]);
+
   const expeditionExtract = useCallback(() => {
     const s = stateRef.current;
     const exp = s.expedition;
@@ -948,15 +993,17 @@ export function useGame() {
     exp.lastText = `Extracted: +${Math.round(exp.haulAw)} AW, +${Math.round(exp.haulXp)} XP, ${exp.haulGear.length} gear.`;
     if (s.settings.sound) sfx.win();
     pushToast('loot', `Extracted haul: +${Math.round(exp.haulAw)} AW, ${exp.haulGear.length} gear`);
+    checkSetBonuses();
     checkAchievements();
     rerender();
-  }, [pushToast, gainXp, checkAchievements, rerender]);
+  }, [pushToast, gainXp, checkAchievements, checkSetBonuses, rerender]);
 
   const expeditionClose = useCallback(() => {
     const s = stateRef.current;
     s.expedition = null;
+    checkSetBonuses();
     rerender();
-  }, [rerender]);
+  }, [checkSetBonuses, rerender]);
 
   const buyGenerator = useCallback(
     (id: string, count: number = 1) => {
