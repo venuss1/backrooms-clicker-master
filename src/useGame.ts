@@ -495,6 +495,12 @@ export function useGame() {
 
   const checkLevelUp = useCallback(() => {
     const s = stateRef.current;
+    // Only auto-advance when the player is at their deepest reached level.
+    // If they've navigated back to a previous level, stay there.
+    if (s.levelIndex < s.maxLevelReached) {
+      checkAchievements();
+      return;
+    }
     while (true) {
       const nxt = LEVELS[s.levelIndex + 1];
       if (nxt && s.totalAw >= nxt.unlockCost) {
