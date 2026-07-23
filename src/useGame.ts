@@ -466,7 +466,7 @@ export function isMaxDepth(s: GameState): boolean {
 // Echoes you'd gain by rebirthing now — cube root scaling, available early
 export function pendingEchoes(s: GameState): number {
   const sb = skillBonuses(s);
-  const base = Math.floor(Math.cbrt(s.lifetimeAw / 5e4) * (1 + sb.prestigeEchoBonus + perkStat(s, 'echo')));
+  const base = Math.floor(Math.cbrt(s.lifetimeAw / 7e5) * (1 + sb.prestigeEchoBonus + perkStat(s, 'echo')));
   return Math.max(0, base - s.totalEchoes);
 }
 
