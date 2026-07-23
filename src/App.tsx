@@ -58,6 +58,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('allies');
   const [gearSlotFilter, setGearSlotFilter] = useState<GearSlot>('Weapon');
   const [showSettings, setShowSettings] = useState(false);
+  const [buyQty, setBuyQty] = useState<1 | 2 | 5 | 'max'>('max');
 
   // Skill tree pan/zoom state
   const [treeZoom, setTreeZoom] = useState(0.5);
@@ -268,44 +269,34 @@ export default function App() {
           <div className="tab-body" key={tab}>
             {tab === 'allies' && (
               <div className="list">
+                <div className="buy-qty-bar">
+                  <span className="bq-label">Buy quantity:</span>
+                  <div className="bq-btns">
+                    <button className={`bq-btn ${buyQty === 1 ? 'sel' : ''}`} onClick={() => setBuyQty(1)}>1</button>
+                    <button className={`bq-btn ${buyQty === 2 ? 'sel' : ''}`} onClick={() => setBuyQty(2)}>2</button>
+                    <button className={`bq-btn ${buyQty === 5 ? 'sel' : ''}`} onClick={() => setBuyQty(5)}>5</button>
+                    <button className={`bq-btn ${buyQty === 'max' ? 'sel' : ''}`} onClick={() => setBuyQty('max')}>Max</button>
+                  </div>
+                </div>
                 {GENERATORS.map((gen, i) => {
                   const owned = genCount(s, gen.id);
                   const locked = i > 0 && genCount(s, GENERATORS[i - 1].id) === 0 && owned === 0;
                   if (locked) return null;
-                  const cost1 = genCost(s, gen.id);
-                  const afford1 = s.aw >= cost1;
-                  const cost2 = genBulkCost(s, gen.id, 2);
-                  const afford2 = s.aw >= cost2;
-                  const cost5 = genBulkCost(s, gen.id, 5);
-                  const afford5 = s.aw >= cost5;
-                  const maxN = genMaxAffordable(s, gen.id);
-                  const costMax = maxN > 0 ? genBulkCost(s, gen.id, maxN) : 0;
-                  const affordMax = maxN > 0;
+                  const qty = buyQty === 'max' ? genMaxAffordable(s, gen.id) : buyQty;
+                  const cost = qty > 0 ? genBulkCost(s, gen.id, qty) : genCost(s, gen.id);
+                  const afford = buyQty === 'max' ? qty > 0 : s.aw >= cost;
+                  const displayQty = buyQty === 'max' ? Math.max(qty, 1) : buyQty;
                   return (
-                    <div key={gen.id} className={`ally-row ${afford1 ? '' : 'poor'}`}>
+                    <div key={gen.id} className={`ally-row ${afford ? '' : 'poor'}`}>
                       <div className="ally-info">
                         <div className="row-title"><span>{gen.name}</span>{owned > 0 && <span className="owned">×{owned}</span>}</div>
                         <p className="row-desc">{gen.hook}</p>
                         <p className="row-prod">+{fmt(gen.baseProd)} AW/s each</p>
                       </div>
-                      <div className="ally-buy-btns">
-                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 1)} disabled={!afford1}>
-                          <span className="buy-qty">1</span>
-                          <span className="buy-cost">{fmt(cost1)}</span>
-                        </button>
-                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 2)} disabled={!afford2}>
-                          <span className="buy-qty">2</span>
-                          <span className="buy-cost">{fmt(cost2)}</span>
-                        </button>
-                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 5)} disabled={!afford5}>
-                          <span className="buy-qty">5</span>
-                          <span className="buy-cost">{fmt(cost5)}</span>
-                        </button>
-                        <button className="buy-btn buy-max" onClick={() => g.buyGenerator(gen.id, maxN)} disabled={!affordMax}>
-                          <span className="buy-qty">Max ({maxN})</span>
-                          <span className="buy-cost">{costMax > 0 ? fmt(costMax) : '—'}</span>
-                        </button>
-                      </div>
+                      <button className="buy-single" onClick={() => g.buyGenerator(gen.id, qty)} disabled={!afford}>
+                        <span className="buy-single-qty">Buy {displayQty > 0 ? displayQty : 1}</span>
+                        <span className="buy-single-cost">Cost: {fmt(cost)}</span>
+                      </button>
                     </div>
                   );
                 })}

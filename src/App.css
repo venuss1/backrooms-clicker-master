@@ -246,19 +246,22 @@
 .row:active:not(:disabled) { transform: translateX(3px) scale(0.99); }
 
 /* ---------- Allies tab rework ---------- */
+.buy-qty-bar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.15)); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 4px; }
+.bq-label { font-size: 13px; font-weight: 700; color: var(--text-dim); letter-spacing: 1px; }
+.bq-btns { display: flex; gap: 6px; }
+.bq-btn { padding: 8px 18px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--text); cursor: pointer; font-weight: 800; font-size: 14px; transition: all 0.15s; }
+.bq-btn:hover { border-color: var(--accent); color: var(--accent); }
+.bq-btn.sel { border-color: var(--accent); background: linear-gradient(135deg, rgba(255,226,122,0.2), rgba(255,226,122,0.08)); color: var(--accent); box-shadow: 0 0 16px rgba(255,226,122,0.2); }
 .ally-row { display: flex; flex-direction: column; gap: 12px; background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.15)); border: 1px solid var(--line); border-radius: 14px; padding: 16px; transition: all 0.2s; }
 .ally-row:hover { border-color: rgba(255,226,122,0.3); }
 .ally-row.poor { opacity: 0.5; }
 .ally-info { flex: 1; }
-.ally-buy-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.buy-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: 10px; border: 1px solid rgba(255,226,122,0.2); background: linear-gradient(135deg, rgba(255,226,122,0.12), rgba(255,226,122,0.04)); color: var(--accent); cursor: pointer; transition: all 0.15s; font-weight: 700; }
-.buy-btn:hover:not(:disabled) { border-color: var(--accent); background: linear-gradient(135deg, rgba(255,226,122,0.2), rgba(255,226,122,0.08)); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(255,226,122,0.2); }
-.buy-btn:active:not(:disabled) { transform: scale(0.96); }
-.buy-btn:disabled { opacity: 0.35; cursor: default; }
-.buy-btn.buy-max { border-color: rgba(126,224,160,0.3); background: linear-gradient(135deg, rgba(126,224,160,0.12), rgba(126,224,160,0.04)); color: #7ee0a0; }
-.buy-btn.buy-max:hover:not(:disabled) { border-color: #7ee0a0; background: linear-gradient(135deg, rgba(126,224,160,0.2), rgba(126,224,160,0.08)); box-shadow: 0 4px 16px rgba(126,224,160,0.2); }
-.buy-qty { font-size: 14px; font-weight: 900; }
-.buy-cost { font-size: 11px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.buy-single { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-radius: 12px; border: 1px solid rgba(255,226,122,0.25); background: linear-gradient(135deg, rgba(255,226,122,0.12), rgba(255,226,122,0.04)); color: var(--accent); cursor: pointer; transition: all 0.15s; font-weight: 700; }
+.buy-single:hover:not(:disabled) { border-color: var(--accent); background: linear-gradient(135deg, rgba(255,226,122,0.2), rgba(255,226,122,0.08)); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(255,226,122,0.2); }
+.buy-single:active:not(:disabled) { transform: scale(0.98); }
+.buy-single:disabled { opacity: 0.35; cursor: default; }
+.buy-single-qty { font-size: 15px; font-weight: 900; }
+.buy-single-cost { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .row:disabled { cursor: default; }
 .row.poor { opacity: 0.45; }
 .row-main { flex: 1; min-width: 0; }
