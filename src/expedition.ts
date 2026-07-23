@@ -54,6 +54,8 @@ export interface Expedition {
   log: string[];
   lastText: string;
   modifier: DelveModifier;
+  pendingGearReveal: string | null; // gear ID awaiting reveal animation
+  lastLoot: { aw: number; xp: number; gear: number } | null; // last event's loot for display
 }
 
 function pick<T>(arr: T[]): T {

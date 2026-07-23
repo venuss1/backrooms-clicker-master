@@ -684,6 +684,8 @@ export function useGame() {
         log: [],
         lastText: mode === 'abyss' ? 'You step off the edge into the Abyss.' : 'You slip into the walls to explore.',
         modifier,
+        pendingGearReveal: null,
+        lastLoot: null,
       };
       if (s.settings.sound) sfx.event();
       const modText = modifier.id !== 'normal' ? ` [${modifier.name}]` : '';
@@ -722,7 +724,9 @@ export function useGame() {
         if (pool.length === 0) return null;
         const pk = weightedGearPick(pool, sb.rarityShift + (force ? 2 : 0));
         exp.haulGear.push(pk.id);
-        return pk.name;
+        exp.pendingGearReveal = pk.id; // trigger reveal animation
+        if (s.settings.sound) sfx.loot();
+        return pk.id;
       };
 
       const caught = (text: string) => {
@@ -733,6 +737,7 @@ export function useGame() {
       };
 
       let text = '';
+      let lootAw = 0, lootXp = 0, lootGear = 0;
       if (ev.kind === 'boss') {
         if (optId === 'retreat') {
           exp.over = 'extracted';
@@ -748,9 +753,11 @@ export function useGame() {
         const win = Math.random() < Math.max(0.20, Math.min(0.85, 0.40 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.015));
         if (win) {
           const aw = base * 3.0;
-          exp.haulAw += aw; exp.haulXp += 50 * roomN;
+          exp.haulAw += aw; exp.haulXp += 50 * roomN; lootAw = aw; lootXp = 50 * roomN;
           const g = grantExpGear(true);
-          text = `Slew ${ev.name}! +${Math.round(aw)} AW${g ? `, it dropped ${g}!` : ''}`;
+          if (g) lootGear = 1;
+          const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+          text = `Slew ${ev.name}! +${Math.round(aw)} AW${gname ? ` — it dropped ${gname}!` : ''}`;
         } else {
           caught(`${ev.name} crushed you — your entire haul is lost.`);
           rerender();
@@ -759,12 +766,14 @@ export function useGame() {
       } else if (ev.kind === 'cache') {
         if (optId === 'open') {
           const aw = base * 1.2;
-          exp.haulAw += aw; exp.haulXp += 8 * roomN; addRisk(0.02);
+          exp.haulAw += aw; exp.haulXp += 8 * roomN; addRisk(0.02); lootAw = aw; lootXp = 8 * roomN;
           const g = Math.random() < 0.25 + luck + mod.gearBonus ? grantExpGear() : null;
-          text = `Pried the cache: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
+          if (g) lootGear = 1;
+          const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+          text = `Pried the cache: +${Math.round(aw)} AW${gname ? ` — found ${gname}!` : ''}`;
         } else {
           const aw = base * 0.5;
-          exp.haulAw += aw; exp.haulXp += 5 * roomN;
+          exp.haulAw += aw; exp.haulXp += 5 * roomN; lootAw = aw; lootXp = 5 * roomN;
           text = `Searched carefully: +${Math.round(aw)} AW (no risk)`;
         }
       } else if (ev.kind === 'entity') {
@@ -772,9 +781,11 @@ export function useGame() {
           const win = Math.random() < Math.max(0.15, Math.min(0.92, 0.45 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.02));
           if (win) {
             const aw = base * 1.7;
-            exp.haulAw += aw; exp.haulXp += 15 * roomN;
+            exp.haulAw += aw; exp.haulXp += 15 * roomN; lootAw = aw; lootXp = 15 * roomN;
             const g = Math.random() < 0.35 + luck + mod.gearBonus ? grantExpGear() : null;
-            text = `Slew ${ev.name}: +${Math.round(aw)} AW${g ? `, dropped ${g}!` : ''}`;
+            if (g) lootGear = 1;
+            const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+            text = `Slew ${ev.name}: +${Math.round(aw)} AW${gname ? ` — dropped ${gname}!` : ''}`;
           } else {
             caught(`${ev.name} overwhelmed you — your haul is lost.`);
             rerender();
@@ -783,7 +794,7 @@ export function useGame() {
         } else if (optId === 'sneak') {
           const ok = Math.random() < Math.max(0.1, Math.min(0.9, 0.42 + luck + expBonus * 0.3 - exp.room * 0.03));
           if (ok) {
-            const aw = base * 0.3; exp.haulAw += aw; exp.haulXp += 6 * roomN;
+            const aw = base * 0.3; exp.haulAw += aw; exp.haulXp += 6 * roomN; lootAw = aw; lootXp = 6 * roomN;
             text = `Slipped past ${ev.name}: +${Math.round(aw)} AW`;
           } else {
             addRisk(0.16);
@@ -796,23 +807,27 @@ export function useGame() {
         }
       } else if (ev.kind === 'fork') {
         if (Math.random() < 0.6) {
-          const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN;
+          const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN; lootAw = aw; lootXp = 10 * roomN;
           const g = Math.random() < 0.20 + luck + mod.gearBonus ? grantExpGear() : null;
-          text = `The passage opened up: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
+          if (g) lootGear = 1;
+          const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+          text = `The passage opened up: +${Math.round(aw)} AW${gname ? ` — found ${gname}!` : ''}`;
         } else {
           const loss = exp.haulAw * 0.3; exp.haulAw -= loss; addRisk(0.1);
           text = `A trap! Lost ${Math.round(loss)} AW and drew attention.`;
         }
       } else if (ev.kind === 'shrine') {
         if (optId === 'attune') {
-          exp.haulXp += 22 * roomN;
-          const aw = base * 0.6; exp.haulAw += aw;
+          exp.haulXp += 22 * roomN; lootXp = 22 * roomN;
+          const aw = base * 0.6; exp.haulAw += aw; lootAw = aw;
           text = `Attuned to ${ev.name}: +${22 * roomN} XP, +${Math.round(aw)} AW`;
         } else {
           if (Math.random() < 0.55) {
-            const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN;
+            const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN; lootAw = aw; lootXp = 12 * roomN;
             const g = Math.random() < 0.40 + luck + mod.gearBonus ? grantExpGear() : null;
-            text = `Harvested ${ev.name}: +${Math.round(aw)} AW${g ? `, tore loose ${g}!` : ''}`;
+            if (g) lootGear = 1;
+            const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+            text = `Harvested ${ev.name}: +${Math.round(aw)} AW${gname ? ` — tore loose ${gname}!` : ''}`;
           } else {
             addRisk(0.2);
             text = `${ev.name} lashed out — risk surges!`;
@@ -821,9 +836,11 @@ export function useGame() {
       } else if (ev.kind === 'treasure') {
         if (optId === 'pry') {
           const g = Math.random() < 0.60 + luck + mod.gearBonus ? grantExpGear() : null;
-          const aw = base * 0.4; exp.haulAw += aw;
+          if (g) lootGear = 1;
+          const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+          const aw = base * 0.4; exp.haulAw += aw; lootAw = aw;
           addRisk(0.08);
-          text = `Tore the wall open: ${g ? `found ${g}!` : 'nothing behind it.'} +${Math.round(aw)} AW. The noise echoes.`;
+          text = `Tore the wall open: ${gname ? `found ${gname}!` : 'nothing behind it.'} +${Math.round(aw)} AW. The noise echoes.`;
         } else {
           text = `You left it behind. Some things aren't worth the risk.`;
         }
@@ -831,9 +848,11 @@ export function useGame() {
         if (optId === 'disarm') {
           const ok = Math.random() < Math.max(0.2, Math.min(0.85, 0.45 + luck + expBonus * 0.3));
           if (ok) {
-            const aw = base * 0.8; exp.haulAw += aw; exp.haulXp += 8 * roomN;
+            const aw = base * 0.8; exp.haulAw += aw; exp.haulXp += 8 * roomN; lootAw = aw; lootXp = 8 * roomN;
             const g = Math.random() < 0.15 + luck + mod.gearBonus ? grantExpGear() : null;
-            text = `Disarmed it! Salvaged +${Math.round(aw)} AW${g ? ` and found ${g}!` : ''}`;
+            if (g) lootGear = 1;
+            const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+            text = `Disarmed it! Salvaged +${Math.round(aw)} AW${gname ? ` and found ${gname}!` : ''}`;
           } else {
             addRisk(0.12);
             const loss = exp.haulAw * 0.2; exp.haulAw -= loss;
@@ -852,9 +871,11 @@ export function useGame() {
         } else if (optId === 'offer-gear') {
           if (exp.haulGear.length > 0) {
             exp.haulGear.pop();
-            exp.haulXp += 40 * roomN;
+            exp.haulXp += 40 * roomN; lootXp = 40 * roomN;
             const g = grantExpGear(true);
-            text = `The altar consumed an item.${g ? ` In return, it revealed ${g}!` : ''} +${40 * roomN} XP.`;
+            if (g) lootGear = 1;
+            const gname = g ? GEAR.find((x) => x.id === g)?.name : null;
+            text = `The altar consumed an item.${gname ? ` In return, it revealed ${gname}!` : ''} +${40 * roomN} XP.`;
           } else {
             text = `You have no gear to offer. The altar ignores you.`;
           }
@@ -863,6 +884,7 @@ export function useGame() {
         }
       }
 
+      exp.lastLoot = { aw: lootAw, xp: lootXp, gear: lootGear };
       if (exp.over === 'active') {
         exp.phase = 'choice';
         exp.lastText = text;
@@ -873,6 +895,14 @@ export function useGame() {
     },
     [rerender, gainXp],
   );
+
+  const claimGearReveal = useCallback(() => {
+    const s = stateRef.current;
+    const exp = s.expedition;
+    if (!exp || !exp.pendingGearReveal) return;
+    exp.pendingGearReveal = null;
+    rerender();
+  }, [rerender]);
 
   const expeditionDeeper = useCallback(() => {
     const s = stateRef.current;
@@ -1158,6 +1188,7 @@ export function useGame() {
     dismissLevelUp,
     startExpedition,
     expeditionChoose,
+    claimGearReveal,
     expeditionDeeper,
     expeditionExtract,
     expeditionClose,

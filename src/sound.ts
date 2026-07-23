@@ -70,4 +70,11 @@ export const sfx = {
     setTimeout(() => play({ freq: 760, dur: 0.25, type: 'sine', gain: 0.07 }), 270);
     setTimeout(() => play({ freq: 1140, dur: 0.4, type: 'triangle', gain: 0.07 }), 420);
   },
+  loot() {
+    // ascending arpeggio for gear reveal
+    play({ freq: 523, dur: 0.1, type: 'triangle', gain: 0.06 });
+    setTimeout(() => play({ freq: 659, dur: 0.1, type: 'triangle', gain: 0.06 }), 80);
+    setTimeout(() => play({ freq: 784, dur: 0.12, type: 'triangle', gain: 0.06 }), 160);
+    setTimeout(() => play({ freq: 1047, dur: 0.3, type: 'sine', gain: 0.07 }), 240);
+  },
 };

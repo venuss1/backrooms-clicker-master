@@ -961,6 +961,80 @@
 .exp-log span { font-size: 10px; opacity: 0.45; }
 .exp-log span:last-child { opacity: 0.8; }
 
+/* ---------- Loot result box & chips ---------- */
+.exp-result-box { margin: 10px 0; padding: 14px; border-radius: 14px; background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.15)); border: 1px solid var(--line); text-align: center; }
+.exp-loot-icons { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+.loot-chip { font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 999px; border: 1px solid; animation: lootPop 0.4s ease; }
+.aw-chip { color: var(--accent); border-color: rgba(255,226,122,0.3); background: rgba(255,226,122,0.1); }
+.xp-chip { color: #7be0ff; border-color: rgba(123,224,255,0.3); background: rgba(123,224,255,0.1); }
+.gear-chip { color: var(--c-epic); border-color: rgba(199,155,255,0.3); background: rgba(199,155,255,0.1); text-transform: uppercase; letter-spacing: 1px; }
+@keyframes lootPop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---------- Expedition done summary ---------- */
+.exp-done-header { text-align: center; margin-bottom: 16px; }
+.exp-done-header.extracted h2 { color: #7be0a0; text-shadow: 0 0 24px rgba(126,224,160,0.5); }
+.exp-done-header.caught h2 { color: #ff6b6b; text-shadow: 0 0 24px rgba(255,107,107,0.5); }
+.exp-done-icon { font-size: 40px; display: block; margin-bottom: 4px; }
+.exp-done-header h2 { font-size: 28px; font-weight: 900; letter-spacing: 3px; margin: 0 0 4px; }
+.exp-done-header p { font-size: 13px; opacity: 0.7; margin: 0; }
+.exp-lost { margin-top: 8px; font-size: 13px; color: #ff6b6b; font-weight: 700; }
+.exp-summary { display: flex; gap: 12px; margin-bottom: 16px; }
+.summary-stat { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px 8px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.15)); }
+.aw-stat { border-color: rgba(255,226,122,0.3); }
+.xp-stat { border-color: rgba(123,224,255,0.3); }
+.ss-icon { font-size: 24px; }
+.ss-val { font-size: 22px; font-weight: 900; margin: 4px 0; }
+.aw-stat .ss-val { color: var(--accent); }
+.xp-stat .ss-val { color: #7be0ff; }
+.ss-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.5; }
+.exp-gear-summary { margin-bottom: 16px; }
+.gear-summary-title { font-size: 14px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); margin: 0 0 10px; text-align: center; }
+.gear-summary-grid { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------- Gear reveal cards (summary) ---------- */
+.gear-reveal-card { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 14px; border: 2px solid; background: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2)); overflow: hidden; animation: cardSlideIn 0.5s ease backwards; }
+@keyframes cardSlideIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+.gear-reveal-card.rar-common { border-color: var(--c-common); }
+.gear-reveal-card.rar-uncommon { border-color: var(--c-uncommon); box-shadow: 0 0 12px rgba(126,224,160,0.15); }
+.gear-reveal-card.rar-rare { border-color: var(--c-rare); box-shadow: 0 0 16px rgba(95,178,255,0.2); }
+.gear-reveal-card.rar-epic { border-color: var(--c-epic); box-shadow: 0 0 20px rgba(199,155,255,0.25); }
+.gear-reveal-card.rar-legendary { border-color: var(--c-legendary); box-shadow: 0 0 24px rgba(255,184,77,0.3); }
+.gear-reveal-card.rar-mythic { border-color: var(--c-mythic); box-shadow: 0 0 30px rgba(255,77,109,0.35); animation: cardSlideIn 0.5s ease backwards, mythicPulse 2s ease-in-out infinite 0.5s; }
+@keyframes mythicPulse { 0%, 100% { box-shadow: 0 0 30px rgba(255,77,109,0.35); } 50% { box-shadow: 0 0 45px rgba(255,77,109,0.6); } }
+.grc-glow { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); pointer-events: none; }
+.grc-rarity-badge { align-self: flex-start; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.grc-slot { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.5; }
+.grc-name { font-size: 15px; font-weight: 800; color: #fff; }
+.grc-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.grc-stats span { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); color: var(--good); }
+
+/* ---------- Gear reveal popup (during delve) ---------- */
+.gear-reveal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 60; backdrop-filter: blur(8px); animation: fade 0.2s; }
+.gear-reveal-pop { position: relative; width: min(360px, 88vw); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px 24px; border-radius: 24px; border: 3px solid; background: linear-gradient(160deg, rgba(16,20,28,0.98), rgba(6,8,14,0.99)); text-align: center; overflow: hidden; animation: revealPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes revealPop { 0% { transform: scale(0.3) rotate(-5deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.gear-reveal-pop.rar-common { border-color: var(--c-common); box-shadow: 0 0 30px rgba(185,182,168,0.2); }
+.gear-reveal-pop.rar-uncommon { border-color: var(--c-uncommon); box-shadow: 0 0 40px rgba(126,224,160,0.3); }
+.gear-reveal-pop.rar-rare { border-color: var(--c-rare); box-shadow: 0 0 50px rgba(95,178,255,0.35); }
+.gear-reveal-pop.rar-epic { border-color: var(--c-epic); box-shadow: 0 0 60px rgba(199,155,255,0.4); }
+.gear-reveal-pop.rar-legendary { border-color: var(--c-legendary); box-shadow: 0 0 70px rgba(255,184,77,0.45); }
+.gear-reveal-pop.rar-mythic { border-color: var(--c-mythic); box-shadow: 0 0 80px rgba(255,77,109,0.5); animation: revealPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), mythicReveal 2s ease-in-out infinite 0.5s; }
+@keyframes mythicReveal { 0%, 100% { box-shadow: 0 0 80px rgba(255,77,109,0.5); } 50% { box-shadow: 0 0 120px rgba(255,77,109,0.8); } }
+.grp-glow { position: absolute; inset: -50%; background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 60%); animation: spin 6s linear infinite; pointer-events: none; }
+.grp-rays { position: absolute; inset: 0; background: conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.03) 10deg, transparent 20deg, transparent 40deg, rgba(255,255,255,0.03) 50deg, transparent 60deg); animation: spin 12s linear infinite reverse; pointer-events: none; opacity: 0.5; }
+.grp-label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; position: relative; }
+.grp-rarity { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; padding: 4px 14px; border-radius: 999px; position: relative; }
+.grp-slot { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.5; position: relative; }
+.grp-name { font-size: 22px; font-weight: 900; color: #fff; margin: 4px 0; text-shadow: 0 0 20px rgba(255,255,255,0.2); position: relative; }
+.grp-desc { font-size: 12px; opacity: 0.6; line-height: 1.5; margin: 0 0 10px; max-width: 280px; position: relative; }
+.grp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-bottom: 16px; position: relative; }
+.grp-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+.gs-icon { font-size: 18px; }
+.gs-val { font-size: 16px; font-weight: 900; color: var(--good); }
+.gs-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.5; }
+.grp-claim { border: none; border-radius: 14px; padding: 14px 40px; font-weight: 900; font-size: 15px; cursor: pointer; background: linear-gradient(135deg, var(--accent), #ffd76b); color: #1a1208; letter-spacing: 1px; transition: all 0.2s; position: relative; box-shadow: 0 4px 20px rgba(255,226,122,0.3); }
+.grp-claim:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 8px 30px rgba(255,226,122,0.5); }
+.grp-claim:active { transform: scale(0.96); }
+
 /* ---------- Reduce motion ---------- */
 .reduce-motion * { animation: none !important; transition: none !important; }
 .reduce-motion .bg-grid { animation: none !important; }

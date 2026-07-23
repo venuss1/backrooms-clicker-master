@@ -685,6 +685,7 @@ export default function App() {
         const exp = s.expedition;
         const riskPct = Math.round(exp.risk * 100);
         const abyss = exp.mode === 'abyss';
+        const revealGear = exp.pendingGearReveal ? GEAR.find((x) => x.id === exp.pendingGearReveal) : null;
         return (
           <div className="exp-overlay">
             <div className={`exp-modal${abyss ? ' abyss' : ''}`}>
@@ -714,7 +715,18 @@ export default function App() {
                 </div>
               )}
 
-              {exp.lastText && <p className="exp-last">{exp.lastText}</p>}
+              {exp.lastText && exp.phase !== 'done' && (
+                <div className="exp-result-box">
+                  <p className="exp-last">{exp.lastText}</p>
+                  {exp.lastLoot && (exp.lastLoot.aw > 0 || exp.lastLoot.xp > 0) && (
+                    <div className="exp-loot-icons">
+                      {exp.lastLoot.aw > 0 && <span className="loot-chip aw-chip">+{fmt(Math.round(exp.lastLoot.aw))} AW</span>}
+                      {exp.lastLoot.xp > 0 && <span className="loot-chip xp-chip">+{fmt(Math.round(exp.lastLoot.xp))} XP</span>}
+                      {exp.lastLoot.gear > 0 && <span className="loot-chip gear-chip">+{exp.lastLoot.gear} GEAR</span>}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {exp.phase === 'event' && (
                 <div className="exp-options">
@@ -740,19 +752,93 @@ export default function App() {
 
               {exp.phase === 'done' && (
                 <div className="exp-done">
-                  <p className={`exp-result ${exp.over}`}>
-                    {exp.over === 'extracted' ? '✔ Extracted safely' : '✖ Caught — haul lost'}
-                  </p>
+                  {exp.over === 'extracted' ? (
+                    <>
+                      <div className="exp-done-header extracted">
+                        <span className="exp-done-icon">✔</span>
+                        <h2>EXTRACTED SAFELY</h2>
+                        <p>You banked your haul from Room {exp.room + 1}</p>
+                      </div>
+                      <div className="exp-summary">
+                        <div className="summary-stat aw-stat">
+                          <span className="ss-icon">💧</span>
+                          <span className="ss-val">+{fmt(Math.round(exp.haulAw))}</span>
+                          <span className="ss-label">Almond Water</span>
+                        </div>
+                        <div className="summary-stat xp-stat">
+                          <span className="ss-icon">⬡</span>
+                          <span className="ss-val">+{fmt(Math.round(exp.haulXp))}</span>
+                          <span className="ss-label">Explorer XP</span>
+                        </div>
+                      </div>
+                      {exp.haulGear.length > 0 && (
+                        <div className="exp-gear-summary">
+                          <h3 className="gear-summary-title">Gear Recovered</h3>
+                          <div className="gear-summary-grid">
+                            {exp.haulGear.map((id, i) => {
+                              const gear = GEAR.find((x) => x.id === id);
+                              if (!gear) return null;
+                              return (
+                                <div key={id} className={`gear-reveal-card rar-${gear.rarity}`} style={{ animationDelay: `${i * 0.15}s` }}>
+                                  <div className="grc-glow" />
+                                  <span className={`grc-rarity-badge rar-badge rar-${gear.rarity}`}>{gear.rarity}</span>
+                                  <span className="grc-slot">{gear.slot}</span>
+                                  <span className="grc-name">{gear.name}</span>
+                                  <div className="grc-stats">
+                                    {gear.stats.clickMult > 0 && <span>+{(gear.stats.clickMult * 100).toFixed(0)}% click</span>}
+                                    {gear.stats.prodMult > 0 && <span>+{(gear.stats.prodMult * 100).toFixed(0)}% prod</span>}
+                                    {gear.stats.luck > 0 && <span>+{(gear.stats.luck * 100).toFixed(0)}% luck</span>}
+                                    {gear.stats.crit > 0 && <span>+{(gear.stats.crit * 100).toFixed(0)}% crit</span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="exp-done-header caught">
+                      <span className="exp-done-icon">✖</span>
+                      <h2>CAUGHT</h2>
+                      <p>{exp.lastText}</p>
+                      <div className="exp-lost">
+                        <span>Lost: {fmt(Math.round(exp.haulAw))} AW</span>
+                        {exp.haulGear.length > 0 && <span> · {exp.haulGear.length} gear item{exp.haulGear.length > 1 ? 's' : ''}</span>}
+                      </div>
+                    </div>
+                  )}
                   <button className="exp-close" onClick={g.expeditionClose}>Leave</button>
                 </div>
               )}
 
-              {exp.log.length > 0 && (
+              {exp.log.length > 0 && exp.phase !== 'done' && (
                 <div className="exp-log">
                   {exp.log.map((l, i) => (<span key={i}>{l}</span>))}
                 </div>
               )}
             </div>
+
+            {revealGear && (
+              <div className="gear-reveal-overlay" onClick={g.claimGearReveal}>
+                <div className={`gear-reveal-pop rar-${revealGear.rarity}`} onClick={(e) => e.stopPropagation()}>
+                  <div className="grp-glow" />
+                  <div className="grp-rays" />
+                  <span className="grp-label">ITEM FOUND</span>
+                  <span className={`grp-rarity rar-badge rar-${revealGear.rarity}`}>{revealGear.rarity}</span>
+                  <span className="grp-slot">{revealGear.slot}</span>
+                  <h2 className="grp-name">{revealGear.name}</h2>
+                  <p className="grp-desc">{revealGear.desc}</p>
+                  <div className="grp-stats">
+                    {revealGear.stats.clickMult > 0 && <div className="grp-stat"><span className="gs-icon">⚡</span><span className="gs-val">+{(revealGear.stats.clickMult * 100).toFixed(0)}%</span><span className="gs-label">Click Power</span></div>}
+                    {revealGear.stats.prodMult > 0 && <div className="grp-stat"><span className="gs-icon">⚙</span><span className="gs-val">+{(revealGear.stats.prodMult * 100).toFixed(0)}%</span><span className="gs-label">Production</span></div>}
+                    {revealGear.stats.luck > 0 && <div className="grp-stat"><span className="gs-icon">🍀</span><span className="gs-val">+{(revealGear.stats.luck * 100).toFixed(0)}%</span><span className="gs-label">Luck</span></div>}
+                    {revealGear.stats.crit > 0 && <div className="grp-stat"><span className="gs-icon">✧</span><span className="gs-val">+{(revealGear.stats.crit * 100).toFixed(0)}%</span><span className="gs-label">Crit</span></div>}
+                  </div>
+                  <button className="grp-claim" onClick={g.claimGearReveal}>Claim Item</button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
