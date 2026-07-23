@@ -1050,8 +1050,8 @@ export default function App() {
                                   <span className="grc-slot">{gear.slot}</span>
                                   <span className="grc-name">{gear.name}</span>
                                   <div className="grc-stats">
-                                    {gear.stats.clickMult > 0 && <span>+{(gear.stats.clickMult * 100).toFixed(0)}% click</span>}
-                                    {gear.stats.prodMult > 0 && <span>+{(gear.stats.prodMult * 100).toFixed(0)}% prod</span>}
+                                    {gear.stats.clickMult > 1 && <span>+{((gear.stats.clickMult - 1) * 100).toFixed(0)}% click</span>}
+                                    {gear.stats.prodMult > 1 && <span>+{((gear.stats.prodMult - 1) * 100).toFixed(0)}% prod</span>}
                                     {gear.stats.luck > 0 && <span>+{(gear.stats.luck * 100).toFixed(0)}% luck</span>}
                                     {gear.stats.crit > 0 && <span>+{(gear.stats.crit * 100).toFixed(0)}% crit</span>}
                                   </div>
@@ -1097,8 +1097,8 @@ export default function App() {
                   <h2 className="grp-name">{revealGear.name}</h2>
                   <p className="grp-desc">{revealGear.desc}</p>
                   <div className="grp-stats">
-                    {revealGear.stats.clickMult > 0 && <div className="grp-stat"><span className="gs-icon">⚡</span><span className="gs-val">+{(revealGear.stats.clickMult * 100).toFixed(0)}%</span><span className="gs-label">Click Power</span></div>}
-                    {revealGear.stats.prodMult > 0 && <div className="grp-stat"><span className="gs-icon">⚙</span><span className="gs-val">+{(revealGear.stats.prodMult * 100).toFixed(0)}%</span><span className="gs-label">Production</span></div>}
+                    {revealGear.stats.clickMult > 1 && <div className="grp-stat"><span className="gs-icon">⚡</span><span className="gs-val">+{((revealGear.stats.clickMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Click Power</span></div>}
+                    {revealGear.stats.prodMult > 1 && <div className="grp-stat"><span className="gs-icon">⚙</span><span className="gs-val">+{((revealGear.stats.prodMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Production</span></div>}
                     {revealGear.stats.luck > 0 && <div className="grp-stat"><span className="gs-icon">🍀</span><span className="gs-val">+{(revealGear.stats.luck * 100).toFixed(0)}%</span><span className="gs-label">Luck</span></div>}
                     {revealGear.stats.crit > 0 && <div className="grp-stat"><span className="gs-icon">✧</span><span className="gs-val">+{(revealGear.stats.crit * 100).toFixed(0)}%</span><span className="gs-label">Crit</span></div>}
                   </div>
@@ -1474,8 +1474,8 @@ export default function App() {
                   <h3 className="ic-name">{it.name}</h3>
                   <p className="ic-desc">{it.desc}</p>
                   <div className="ic-stats">
-                    {it.stats.clickMult > 0 && <div>⚡ +{(it.stats.clickMult * 100).toFixed(0)}%</div>}
-                    {it.stats.prodMult > 0 && <div>⚙ +{(it.stats.prodMult * 100).toFixed(0)}%</div>}
+                    {it.stats.clickMult > 1 && <div>⚡ +{((it.stats.clickMult - 1) * 100).toFixed(0)}%</div>}
+                    {it.stats.prodMult > 1 && <div>⚙ +{((it.stats.prodMult - 1) * 100).toFixed(0)}%</div>}
                     {it.stats.luck > 0 && <div>🍀 +{(it.stats.luck * 100).toFixed(0)}%</div>}
                     {it.stats.crit > 0 && <div>✧ +{(it.stats.crit * 100).toFixed(0)}%</div>}
                   </div>
@@ -1489,10 +1489,10 @@ export default function App() {
                   <h3 className="ic-name">{it.name}</h3>
                   <p className="ic-desc">{it.desc}</p>
                   <div className="ic-stats">
-                    {it.stats.clickMult > 0 && <div>⚡ +{((it.stats.clickMult * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
-                    {it.stats.prodMult > 0 && <div>⚙ +{((it.stats.prodMult * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
-                    {it.stats.luck > 0 && <div>🍀 +{((it.stats.luck * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
-                    {it.stats.crit > 0 && <div>✧ +{((it.stats.crit * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
+                    {it.stats.clickMult > 1 && <div>⚡ +{(((it.stats.clickMult - 1) * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(1)}%</div>}
+                    {it.stats.prodMult > 1 && <div>⚙ +{(((it.stats.prodMult - 1) * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(1)}%</div>}
+                    {it.stats.luck > 0 && <div>🍀 +{((it.stats.luck * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(1)}%</div>}
+                    {it.stats.crit > 0 && <div>✧ +{((it.stats.crit * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(1)}%</div>}
                   </div>
                 </div>
               </div>

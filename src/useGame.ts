@@ -390,7 +390,7 @@ export function gearClickMult(s: GameState): number {
   return equippedGear(s).reduce((m, g) => {
     const upgrade = s.gearUpgrades[g.id] ?? 0;
     const upgradeBonus = 1 + 0.10 * upgrade;
-    return m * (1 + (g.stats.clickMult * upgradeBonus - 1) * mult);
+    return m * (1 + (g.stats.clickMult - 1) * upgradeBonus * mult);
   }, 1);
 }
 export function gearProdMult(s: GameState): number {
@@ -399,7 +399,7 @@ export function gearProdMult(s: GameState): number {
   return equippedGear(s).reduce((m, g) => {
     const upgrade = s.gearUpgrades[g.id] ?? 0;
     const upgradeBonus = 1 + 0.10 * upgrade;
-    return m * (1 + (g.stats.prodMult * upgradeBonus - 1) * mult);
+    return m * (1 + (g.stats.prodMult - 1) * upgradeBonus * mult);
   }, 1);
 }
 export function gearLuck(s: GameState): number {
