@@ -2975,8 +2975,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 5 - 'No-clipping'",
     "desc": "Core stable, conditional, or unpredictable teleportation through obstacles and levels.",
     "hook": "Use learned no-clip conditions as shortcuts while unstable attempts risk displacement.",
-    "effect": "clickX2",
-    "label": "Click power doubled",
+    "effect": "clickX1.3",
+    "label": "Click power +30%",
     "rating": 126
   },
   {
@@ -2984,8 +2984,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 7 - 'Liminal Echo'",
     "desc": "Psychic contamination that mutates environments and sustains global sanity pressure.",
     "hook": "Apply region-wide mental pressure that explains escalating environmental hostility.",
-    "effect": "prodX2",
-    "label": "Production doubled",
+    "effect": "prodX1.3",
+    "label": "Production +30%",
     "rating": 103
   },
   {
@@ -2994,7 +2994,7 @@ export const PHENOMENA: Phenomenon[] = [
     "desc": "Timed blood-flood event telegraphed by red light and panic.",
     "hook": "Give five minutes to reach shelter or high ground before a level-wide flood.",
     "effect": "burst",
-    "label": "Instant Almond Water burst",
+    "label": "Small AW burst",
     "rating": 49
   },
   {
@@ -3002,8 +3002,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 55 - 'GODHAND'",
     "desc": "Violence-induced berserker state grants strength and euphoria while eroding humanity.",
     "hook": "Reward continued unarmed violence with power while escalating loss of control.",
-    "effect": "clickX3",
-    "label": "Click power tripled",
+    "effect": "clickX1.5",
+    "label": "Click power +50%",
     "rating": 49
   },
   {
@@ -3011,8 +3011,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 13 - 'A Way Out'",
     "desc": "Cult-controlled seven-step meditation allegedly returns people to the Frontrooms.",
     "hook": "Make escape depend on a morally uncertain ritual chain and unreliable guides.",
-    "effect": "prodX3",
-    "label": "Production tripled",
+    "effect": "prodX1.5",
+    "label": "Production +50%",
     "rating": 47
   },
   {
@@ -3021,7 +3021,7 @@ export const PHENOMENA: Phenomenon[] = [
     "desc": "Color and audio warning precede a level-wide gravity reversal.",
     "hook": "Telegraph inversion clearly, then move combat and falling hazards onto the ceiling.",
     "effect": "luck",
-    "label": "Fortune surges (loot & events)",
+    "label": "Luck +15%",
     "rating": 42
   },
   {
@@ -3029,8 +3029,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 32 - 'Level Velocity'",
     "desc": "Moving levels collide, alter exits, expose regions, and destabilize collision.",
     "hook": "Change the world graph as level collisions open and close routes.",
-    "effect": "clickX2",
-    "label": "Click power doubled",
+    "effect": "clickX1.3",
+    "label": "Click power +30%",
     "rating": 41
   },
   {
@@ -3038,8 +3038,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 99 - 'Forced Immortality'",
     "desc": "Involuntary immortality causes instantaneous painful regeneration after attempted death.",
     "hook": "Use cursed regeneration to complicate death, sacrifice, and immortal NPC arcs.",
-    "effect": "prodX2",
-    "label": "Production doubled",
+    "effect": "prodX1.3",
+    "label": "Production +30%",
     "rating": 40
   },
   {
@@ -3048,7 +3048,7 @@ export const PHENOMENA: Phenomenon[] = [
     "desc": "Three-stage lifecycle disintegrates, rearranges, and rebuilds an entire level.",
     "hook": "Transform a live region across seasonal phases of destruction, void drift, and reconstruction.",
     "effect": "burst",
-    "label": "Instant Almond Water burst",
+    "label": "Small AW burst",
     "rating": 36
   },
   {
@@ -3056,8 +3056,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 86 - 'The Great Backrooms Meteor Shower'",
     "desc": "Rare sanctuary event calms isolated people, cools the area, and suppresses hostility.",
     "hook": "Create a temporary nonviolent rest window during an otherwise desperate expedition.",
-    "effect": "clickX3",
-    "label": "Click power tripled",
+    "effect": "clickX1.5",
+    "label": "Click power +50%",
     "rating": 34
   },
   {
@@ -3065,8 +3065,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 16 - 'Destabilizing Storms'",
     "desc": "Reality storm rewrites matter, organisms, and physical laws with advance warning.",
     "hook": "Let players evacuate, mitigate, or exploit a storm that rerolls local rules and mutations.",
-    "effect": "prodX3",
-    "label": "Production tripled",
+    "effect": "prodX1.5",
+    "label": "Production +50%",
     "rating": 33
   },
   {
@@ -3075,7 +3075,7 @@ export const PHENOMENA: Phenomenon[] = [
     "desc": "No-clip collisions fuse beings into painful hybrids or explosive deaths.",
     "hook": "Create fusion enemies and player risks when multiple travelers share a destination.",
     "effect": "luck",
-    "label": "Fortune surges (loot & events)",
+    "label": "Luck +15%",
     "rating": 32
   },
   {
@@ -3083,8 +3083,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 30 - 'Orbs'",
     "desc": "Invisible space-time punctures detectable through flash photography and capable of draining life.",
     "hook": "Require camera flashes to reveal lethal orb density before crossing a route.",
-    "effect": "clickX2",
-    "label": "Click power doubled",
+    "effect": "clickX1.3",
+    "label": "Click power +30%",
     "rating": 31
   },
   {
@@ -3092,8 +3092,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 50 - 'Vortexes'",
     "desc": "Red-energy portals spread corruption, aggression, entities, and structural change.",
     "hook": "Grow corrupting portal zones until players contain them or face altered populations.",
-    "effect": "prodX2",
-    "label": "Production doubled",
+    "effect": "prodX1.3",
+    "label": "Production +30%",
     "rating": 31
   },
   {
@@ -3102,7 +3102,7 @@ export const PHENOMENA: Phenomenon[] = [
     "desc": "Personalized source-less sounds cannot be reliably distinguished from real threats.",
     "hook": "Blend false footsteps, voices, machinery, and explosions into the genuine audio model.",
     "effect": "burst",
-    "label": "Instant Almond Water burst",
+    "label": "Small AW burst",
     "rating": 29
   },
   {
@@ -3110,8 +3110,8 @@ export const PHENOMENA: Phenomenon[] = [
     "name": "Phenomenon 8 - 'Doodletrapping'",
     "desc": "Marked paper teleports sleepers into explorable realms where drawings become interactive.",
     "hook": "Generate paper realms whose drawn objects become traversal tools or enemies.",
-    "effect": "clickX3",
-    "label": "Click power tripled",
+    "effect": "clickX1.5",
+    "label": "Click power +50%",
     "rating": 13
   }
 ];

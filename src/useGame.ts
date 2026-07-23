@@ -34,6 +34,20 @@ export interface ActiveBuff {
   until: number;
 }
 
+export interface PendingPhenomenon {
+  id: string;
+  name: string;
+  effect: string;
+  label: string;
+  icon: string;
+  spawned: number; // performance.now() when spawned
+  expires: number; // performance.now() when the click window ends
+  x: number; // target position (0-1 relative)
+  y: number;
+  vx: number; // velocity for flying movement
+  vy: number;
+}
+
 export interface ActiveEncounter {
   id: string;
   name: string;
@@ -85,6 +99,7 @@ export interface GameState {
   expedition: Expedition | null;
   deepestAbyss: number; // deepest abyss room ever reached (permanent multiplier)
   encounterCooldownUntil: number; // performance.now() timestamp; no encounters spawn before this
+  pendingPhenomenon: PendingPhenomenon | null; // flying phenomenon orb to click
   lastSaved: number; // Date.now() of last save — used for offline progress
 }
 
@@ -158,6 +173,7 @@ function freshState(): GameState {
     expedition: null,
     deepestAbyss: 0,
     encounterCooldownUntil: 0,
+    pendingPhenomenon: null,
     lastSaved: Date.now(),
   };
 }
@@ -178,6 +194,7 @@ function load(): GameState {
       pendingPerks: null,
       pendingLevelUp: false,
       encounterCooldownUntil: 0,
+      pendingPhenomenon: null,
     };
     // Migrate old saves: ensure maxLevelReached is at least the current levelIndex
     if (merged.maxLevelReached < merged.levelIndex) merged.maxLevelReached = merged.levelIndex;
@@ -373,7 +390,7 @@ export function gearProdMult(s: GameState): number {
 }
 export function gearLuck(s: GameState): number {
   const sb = skillBonuses(s);
-  const buffLuck = s.buff?.effect === 'luck' ? 0.25 : 0;
+  const buffLuck = s.buff?.effect === 'luck' ? 0.15 : 0;
   return equippedGear(s).reduce((m, g) => m + g.stats.luck * sb.gearStatMult, 0) + buffLuck + perkStat(s, 'luck') + sb.luckAdd;
 }
 export function gearCrit(s: GameState): number {
@@ -386,13 +403,13 @@ export function critMultVal(s: GameState): number {
 }
 
 export function buffClickMult(s: GameState): number {
-  if (s.buff?.effect === 'clickX2') return 2;
-  if (s.buff?.effect === 'clickX3') return 3;
+  if (s.buff?.effect === 'clickX1.3') return 1.3;
+  if (s.buff?.effect === 'clickX1.5') return 1.5;
   return 1;
 }
 export function buffProdMult(s: GameState): number {
-  if (s.buff?.effect === 'prodX2') return 2;
-  if (s.buff?.effect === 'prodX3') return 3;
+  if (s.buff?.effect === 'prodX1.3') return 1.3;
+  if (s.buff?.effect === 'prodX1.5') return 1.5;
   return 1;
 }
 
@@ -1175,6 +1192,7 @@ export function useGame() {
     s.buff = null;
     s.encounter = null;
     s.expedition = null;
+    s.pendingPhenomenon = null;
     s.finaleAvailable = false;
     s.searchProgress = 0;
     s.searchLevel = 0;
@@ -1222,6 +1240,32 @@ export function useGame() {
     comboRef.current = 0;
     localStorage.removeItem(SAVE_KEY);
     pushToast('info', 'Progress wiped. Back to Level 0.');
+    rerender();
+  }, [pushToast, rerender]);
+
+  // Catch a flying phenomenon orb — skill check mechanic
+  const catchPhenomenon = useCallback(() => {
+    const s = stateRef.current;
+    const pp = s.pendingPhenomenon;
+    if (!pp) return;
+    const now = performance.now();
+    const sb = skillBonuses(s);
+
+    if (pp.effect === 'burst') {
+      // Smaller burst — toned down from 45s+25 clicks to 20s+10 clicks
+      const amt = Math.max(50, (productionPerSec(s) * 20 + baseClickPower(s) * 10) * sb.burstMult);
+      s.aw += amt;
+      s.totalAw += amt;
+      s.lifetimeAw += amt;
+      pushToast('event', `${pp.name} caught! +${Math.round(amt)} AW burst!`);
+      checkLevelUp();
+    } else {
+      // Shorter duration: 12s instead of 18s
+      s.buff = { id: pp.id, name: pp.name, effect: pp.effect, label: pp.label, until: now + 12000 * sb.buffDurationMult };
+      pushToast('event', `${pp.name} caught! ${pp.label} (12s)`);
+    }
+    if (s.settings.sound) sfx.event();
+    s.pendingPhenomenon = null;
     rerender();
   }, [pushToast, rerender]);
 
@@ -1273,6 +1317,24 @@ export function useGame() {
 
       if (!skillBonuses(s).comboNoDecay && now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
       if (s.buff && now > s.buff.until) s.buff = null;
+
+      // Move and expire the pending phenomenon orb
+      if (s.pendingPhenomenon) {
+        const pp = s.pendingPhenomenon;
+        if (now > pp.expires) {
+          // Player missed it
+          s.pendingPhenomenon = null;
+          pushToast('info', `${pp.name} faded away...`);
+        } else {
+          // Move the orb, bouncing off edges
+          pp.x += pp.vx * dt;
+          pp.y += pp.vy * dt;
+          if (pp.x < 0.05) { pp.x = 0.05; pp.vx = Math.abs(pp.vx); }
+          if (pp.x > 0.95) { pp.x = 0.95; pp.vx = -Math.abs(pp.vx); }
+          if (pp.y < 0.05) { pp.y = 0.05; pp.vy = Math.abs(pp.vy); }
+          if (pp.y > 0.85) { pp.y = 0.85; pp.vy = -Math.abs(pp.vy); }
+        }
+      }
       if (s.encounter && s.encounter.until && now > s.encounter.until) {
         pushToast('info', `${s.encounter.name} wandered off...`);
         s.encounter = null;
@@ -1287,21 +1349,25 @@ export function useGame() {
         const started = s.playtime > 45 && (s.totalAw > 300 || s.clicks > 40);
         const luck = gearLuck(s);
         if (started && !s.encounter?.isFinale) {
-          if (!s.buff && Math.random() < 0.05 + luck * 0.2 + skillBonuses(s).buffChanceBonus) {
+          // Spawn a flying phenomenon orb that the player must click to catch
+          if (!s.buff && !s.pendingPhenomenon && Math.random() < 0.04 + luck * 0.15 + skillBonuses(s).buffChanceBonus) {
             const p: Phenomenon = PHENOMENA[Math.floor(Math.random() * PHENOMENA.length)];
-            if (p.effect === 'burst') {
-              const amt = Math.max(50, (productionPerSec(s) * 45 + baseClickPower(s) * 25) * skillBonuses(s).burstMult);
-              s.aw += amt;
-              s.totalAw += amt;
-              s.lifetimeAw += amt;
-              if (s.settings.sound) sfx.event();
-              pushToast('event', `${p.name}: +${Math.round(amt)} AW burst!`);
-              checkLevelUp();
-            } else {
-              s.buff = { id: p.id, name: p.name, effect: p.effect, label: p.label, until: now + 18000 * skillBonuses(s).buffDurationMult };
-              if (s.settings.sound) sfx.event();
-              pushToast('event', `${p.name}: ${p.label} (18s)`);
-            }
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 0.08 + Math.random() * 0.06; // movement speed in screen-fractions per second
+            s.pendingPhenomenon = {
+              id: p.id,
+              name: p.name,
+              effect: p.effect,
+              label: p.label,
+              icon: p.effect === 'burst' ? '💧' : p.effect.startsWith('click') ? '⚡' : p.effect.startsWith('prod') ? '⚙' : '🍀',
+              spawned: now,
+              expires: now + 6000, // 6 seconds to click it
+              x: 0.2 + Math.random() * 0.6,
+              y: 0.2 + Math.random() * 0.5,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+            };
+            if (s.settings.sound) sfx.event();
           }
           // Encounters: ~2%/sec base (≈ once per ~50s), gated by a 45s cooldown after the
           // last one ended. Luck slightly raises the chance. Bosses only from depth 6+.
@@ -1372,6 +1438,7 @@ export function useGame() {
     toggleSetting,
     setVolume,
     hardReset,
+    catchPhenomenon,
     choosePerk,
     dismissLevelUp,
     startExpedition,

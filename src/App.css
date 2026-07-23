@@ -430,6 +430,107 @@
 .pulse { animation: pulse 0.8s infinite; display: inline-block; }
 @keyframes pulse { 50% { transform: scale(1.4); } }
 
+/* ===== Flying Phenomenon Orb ===== */
+.phenomenon-orb {
+  position: fixed;
+  width: 70px;
+  height: 70px;
+  margin-left: -35px;
+  margin-top: -35px;
+  z-index: 60;
+  cursor: pointer;
+  user-select: none;
+  transition: none;
+  animation: orbSpawn 0.3s ease-out;
+}
+@keyframes orbSpawn {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+.phenomenon-orb-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9), rgba(180,140,255,0.6) 40%, rgba(100,60,200,0.4) 70%, transparent);
+  box-shadow: 0 0 30px rgba(180,140,255,0.7), 0 0 60px rgba(120,80,220,0.4), inset 0 0 20px rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: orbPulse 1s ease-in-out infinite;
+}
+@keyframes orbPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(180,140,255,0.7), 0 0 60px rgba(120,80,220,0.4), inset 0 0 20px rgba(255,255,255,0.3); }
+  50% { box-shadow: 0 0 45px rgba(200,160,255,0.9), 0 0 90px rgba(140,100,240,0.5), inset 0 0 25px rgba(255,255,255,0.4); }
+}
+.phenomenon-orb-icon {
+  font-size: 28px;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.8));
+  animation: orbIconSpin 3s linear infinite;
+}
+@keyframes orbIconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.phenomenon-orb-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(180,140,255,0.5);
+  animation: orbRing 1.5s ease-out infinite;
+}
+@keyframes orbRing {
+  from { transform: scale(1); opacity: 0.8; }
+  to { transform: scale(1.8); opacity: 0; }
+}
+.phenomenon-orb-timer {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0,0,0,0.7);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(180,140,255,0.4);
+}
+.phenomenon-orb-label {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(200,170,255,0.9);
+  white-space: nowrap;
+  text-shadow: 0 0 6px rgba(0,0,0,0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.phenomenon-orb:hover .phenomenon-orb-inner {
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,1), rgba(220,180,255,0.8) 40%, rgba(140,100,240,0.6) 70%, transparent);
+  box-shadow: 0 0 50px rgba(200,160,255,1), 0 0 100px rgba(160,120,250,0.6), inset 0 0 30px rgba(255,255,255,0.5);
+}
+.phenomenon-orb:active {
+  transform: scale(0.85);
+}
+
+/* Screen flash when phenomenon spawns */
+.phenomenon-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(180,140,255,0.15), transparent 60%);
+  animation: phenFlash 0.6s ease-out forwards;
+}
+@keyframes phenFlash {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- Encounter overlay ---------- */
 .encounter-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: flex; align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(4px); animation: fade 0.25s; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

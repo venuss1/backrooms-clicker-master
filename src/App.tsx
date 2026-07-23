@@ -795,6 +795,33 @@ export default function App() {
         </div>
       )}
 
+      {/* Flying phenomenon orb — skill check to catch */}
+      {s.pendingPhenomenon && (
+        <div
+          className="phenomenon-orb"
+          style={{
+            left: `${s.pendingPhenomenon.x * 100}%`,
+            top: `${s.pendingPhenomenon.y * 100}%`,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            g.catchPhenomenon();
+          }}
+        >
+          <div className="phenomenon-orb-inner">
+            <span className="phenomenon-orb-icon">{s.pendingPhenomenon.icon}</span>
+          </div>
+          <div className="phenomenon-orb-ring" />
+          <div className="phenomenon-orb-timer">
+            {Math.max(0, Math.ceil((s.pendingPhenomenon.expires - performance.now()) / 1000))}
+          </div>
+          <div className="phenomenon-orb-label">{s.pendingPhenomenon.name.replace(/^Phenomenon \d+ - /, '')}</div>
+        </div>
+      )}
+
+      {/* Screen flash effect when a phenomenon spawns */}
+      {s.pendingPhenomenon && <div className="phenomenon-flash" key={s.pendingPhenomenon.spawned} />}
+
       {s.pendingLevelUp && !s.pendingPerks && (
         <div className="perk-overlay">
           <div className="levelup-modal">
@@ -1153,7 +1180,7 @@ export default function App() {
                     <h3>🌊 Random Events</h3>
                     <p>Every second, the game rolls for random events (after 45s of playtime):</p>
                     <ul>
-                      <li><b>Phenomena</b> (5% + luck×20% chance if no buff active): AW burst or temporary buff (×2 or ×3 production, +25% luck, etc.) for 18s</li>
+                      <li><b>Phenomena</b> (~4% + luck chance if no buff active): A glowing orb flies across the screen — <b>click it within 6 seconds</b> to catch it! Grants a temporary buff (+30%/+50% production or click, +15% luck) for 12s, or an instant AW burst if you catch a burst orb</li>
                       <li><b>Encounters</b> (2% + luck×3% chance if no encounter): Click-target event with timer. Boss encounters have bigger rewards.</li>
                     </ul>
                   </div>
