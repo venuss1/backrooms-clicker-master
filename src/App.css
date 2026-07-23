@@ -18,6 +18,7 @@
   --c-rare: #5fb2ff;
   --c-epic: #c79bff;
   --c-legendary: #ffb84d;
+  --c-mythic: #ff4d6d;
 }
 
 * { box-sizing: border-box; }
@@ -264,11 +265,13 @@
 .rar-rare { border-left-color: var(--c-rare); } .rar-badge.rar-rare { background: rgba(95,178,255,0.2); color: var(--c-rare); }
 .rar-epic { border-left-color: var(--c-epic); } .rar-badge.rar-epic { background: rgba(199,155,255,0.2); color: var(--c-epic); }
 .rar-legendary { border-left-color: var(--c-legendary); } .rar-badge.rar-legendary { background: rgba(255,184,77,0.2); color: var(--c-legendary); }
+.rar-mythic { border-left-color: var(--c-mythic); } .rar-badge.rar-mythic { background: rgba(255,77,109,0.2); color: var(--c-mythic); text-shadow: 0 0 8px rgba(255,77,109,0.5); }
 .slot.rar-common { box-shadow: inset 0 0 0 1px rgba(185,182,168,0.3); }
 .slot.rar-uncommon { box-shadow: inset 0 0 0 1px rgba(126,224,160,0.4); }
 .slot.rar-rare { box-shadow: inset 0 0 0 1px rgba(95,178,255,0.5); }
 .slot.rar-epic { box-shadow: inset 0 0 0 1px rgba(199,155,255,0.5); }
 .slot.rar-legendary { box-shadow: inset 0 0 0 1px rgba(255,184,77,0.6); }
+.slot.rar-mythic { box-shadow: inset 0 0 0 1px rgba(255,77,109,0.7); }
 .gear-stats { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; font-weight: 700; }
 .gear-stats span { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
 .gear-btn { border: none; border-radius: 10px; padding: 10px 16px; font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
@@ -888,6 +891,13 @@
 .exp-event.ev-entity { border-color: rgba(255,107,107,0.5); }
 .exp-event.ev-shrine { border-color: rgba(199,155,255,0.5); }
 .exp-event.ev-cache { border-color: rgba(255,215,107,0.5); }
+.exp-event.ev-treasure { border-color: rgba(255,226,122,0.6); box-shadow: 0 0 20px rgba(255,226,122,0.15); }
+.exp-event.ev-trap { border-color: rgba(255,140,60,0.5); }
+.exp-event.ev-altar { border-color: rgba(180,140,255,0.5); }
+.exp-event.ev-boss { border-color: rgba(255,77,109,0.7); box-shadow: 0 0 30px rgba(255,77,109,0.2); animation: pulseSoft 1.5s ease-in-out infinite; }
+.exp-modifier { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(199,155,255,0.12), rgba(199,155,255,0.03)); border: 1px solid rgba(199,155,255,0.3); margin: 8px 0 4px; }
+.exp-modifier .mod-name { font-weight: 800; font-size: 13px; color: #c79bff; }
+.exp-modifier .mod-desc { font-size: 11px; opacity: 0.7; line-height: 1.4; }
 .exp-icon { font-size: 36px; display: block; }
 .exp-event h2 { margin: 6px 0; font-size: 22px; color: #fff; font-weight: 800; }
 .exp-event p { margin: 0; font-size: 12px; opacity: 0.8; line-height: 1.5; }

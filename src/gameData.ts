@@ -5,9 +5,9 @@ export type SceneKind = 'corridor' | 'office' | 'hotel' | 'dark' | 'water' | 'ca
 export interface Level { id: string; name: string; desc: string; hook: string; unlockCost: number; mult: number; rating: number; scene: SceneKind; verb: string; icon: string; hue: number; }
 export interface Generator { id: string; name: string; desc: string; hook: string; baseCost: number; baseProd: number; rating: number; }
 export type GearSlot = 'Weapon' | 'Light' | 'Armor' | 'Trinket';
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 export interface GearStats { clickMult: number; prodMult: number; luck: number; crit: number; }
-export interface Gear { id: string; name: string; desc: string; hook: string; slot: GearSlot; rarity: Rarity; cost: number; stats: GearStats; rating: number; dropLevel: number; }
+export interface Gear { id: string; name: string; desc: string; hook: string; slot: GearSlot; rarity: Rarity; cost: number; stats: GearStats; rating: number; minDelveRoom: number; abyssOnly?: boolean; }
 export interface Encounter { id: string; name: string; desc: string; hook: string; boss: boolean; rating: number; }
 export interface Finale { id: string; name: string; desc: string; hook: string; rating: number; }
 export interface Phenomenon { id: string; name: string; desc: string; hook: string; effect: string; label: string; rating: number; }
@@ -694,345 +694,352 @@ export const GENERATORS: Generator[] = [
 ];
 
 export const GEAR: Gear[] = [
+  // ===== WEAPONS (click power + crit) — 7 items, scaling with delve depth =====
   {
-    "id": "object-74",
-    "name": "Object 74 - 'Warpberries!'",
-    "desc": "Non-spoiling berries that recall the eater to the level where the box was found.",
-    "hook": "Bind each berry stack to its discovery level for consumable return travel.",
-    "slot": "Light",
-    "rarity": "epic",
-    "cost": 204,
-    "stats": {
-      "clickMult": 1.0,
-      "prodMult": 1.306,
-      "luck": 0.18,
-      "crit": 0.0
-    },
-    "rating": 89,
-    "dropLevel": 0
-  },
-  {
-    "id": "object-95",
-    "name": "Object 95 - 'Temporal Apotheosis'",
-    "desc": "Pocket-watch countdown may rewrite reality and implant shared false memories.",
-    "hook": "Use the countdown as a visible trigger for a reality-changing seasonal event.",
-    "slot": "Armor",
-    "rarity": "epic",
-    "cost": 204,
-    "stats": {
-      "clickMult": 1.128,
-      "prodMult": 1.38,
-      "luck": 0.0,
-      "crit": 0.0
-    },
-    "rating": 73,
-    "dropLevel": 2
-  },
-  {
-    "id": "object-1",
-    "name": "Object 1 - 'Almond Water'",
-    "desc": "Core healing, nutrition, medicine, trade, and entity-taming liquid with contaminated variants.",
-    "hook": "Use bottle color and contamination to create appraisal risk and varied restorative effects.",
-    "slot": "Trinket",
-    "rarity": "legendary",
-    "cost": 240,
-    "stats": {
-      "clickMult": 1.215,
-      "prodMult": 1.215,
-      "luck": 0.105,
-      "crit": 0.0
-    },
-    "rating": 119,
-    "dropLevel": 4
-  },
-  {
-    "id": "object-15",
-    "name": "Object 15 - 'Firesalt'",
-    "desc": "Explosive crystal, demolition ingot, heat source, and sterilizing reagent.",
-    "hook": "Let size and refinement determine whether Firesalt is a grenade, tool, fuel, or reagent.",
+    "id": "weapon-rusty-pipe",
+    "name": "Rusty Pipe",
+    "desc": "A corroded pipe pulled from the walls. Crude but effective in a swing.",
+    "hook": "Every wanderer's first weapon — found wedged behind a ceiling tile.",
     "slot": "Weapon",
-    "rarity": "legendary",
-    "cost": 240,
-    "stats": {
-      "clickMult": 1.43,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.14
-    },
-    "rating": 92,
-    "dropLevel": 6
-  },
-  {
-    "id": "object-365",
-    "name": "Object 365 - 'Seer Tea'",
-    "desc": "Rare tea grants physical, cognitive, luck, psychic-defense, and precognitive effects.",
-    "hook": "Craft a high-tier multi-buff tea from dangerous entity remains.",
-    "slot": "Light",
-    "rarity": "epic",
-    "cost": 938.4,
-    "stats": {
-      "clickMult": 1.0,
-      "prodMult": 1.356,
-      "luck": 0.19,
-      "crit": 0.0
-    },
-    "rating": 80,
-    "dropLevel": 7
-  },
-  {
-    "id": "object-56",
-    "name": "Object 56 - \u201cUltimate Backrooms Cookbook\u201d",
-    "desc": "Recipe-unlock book combining Backrooms objects into food, drinks, and Memory Juice.",
-    "hook": "Reveal cooking recipes page by page through discovery and ingredient experiments.",
-    "slot": "Trinket",
-    "rarity": "epic",
-    "cost": 938.4,
-    "stats": {
-      "clickMult": 1.22,
-      "prodMult": 1.22,
-      "luck": 0.09,
-      "crit": 0.0
-    },
-    "rating": 71,
-    "dropLevel": 9
-  },
-  {
-    "id": "object-24",
-    "name": "Object 24 - 'Wall Masks'",
-    "desc": "Cursed masks grant power while inducing distinct murderous behavior profiles.",
-    "hook": "Trade mask-specific abilities against escalating loss-of-control behavior.",
-    "slot": "Armor",
-    "rarity": "epic",
-    "cost": 938.4,
-    "stats": {
-      "clickMult": 1.128,
-      "prodMult": 1.44,
-      "luck": 0.0,
-      "crit": 0.0
-    },
-    "rating": 69,
-    "dropLevel": 11
-  },
-  {
-    "id": "object-17",
-    "name": "Object 17 - 'Liquid Silence'",
-    "desc": "Sound-absorbing liquid used for stealth gear and stored acoustic attacks.",
-    "hook": "Capture ambient sound for silent equipment, then release it as an electrical burst.",
-    "slot": "Weapon",
-    "rarity": "epic",
-    "cost": 938.4,
-    "stats": {
-      "clickMult": 1.44,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.13
-    },
-    "rating": 65,
-    "dropLevel": 13
-  },
-  {
-    "id": "object-35",
-    "name": "Object 35 - 'Dark Reparation Vials'",
-    "desc": "Unidentified crystal-color potion set ranging from healing to addiction, mutation, and death.",
-    "hook": "Hide vial outcomes behind crystal colors until identified through use, lore, or alchemy.",
-    "slot": "Armor",
-    "rarity": "uncommon",
-    "cost": 2793.12,
-    "stats": {
-      "clickMult": 1.088,
-      "prodMult": 1.4,
-      "luck": 0.0,
-      "crit": 0.0
-    },
-    "rating": 49,
-    "dropLevel": 15
-  },
-  {
-    "id": "object-42",
-    "name": "Object 42 - 'Lightning In a Bottle'",
-    "desc": "Fragile stored electrical charge usable as grenade, trap, power source, or component.",
-    "hook": "Arc electricity toward the closest conductor, including unintended targets and machinery.",
-    "slot": "Weapon",
-    "rarity": "rare",
-    "cost": 3554.88,
-    "stats": {
-      "clickMult": 1.45,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.12
-    },
-    "rating": 64,
-    "dropLevel": 17
-  },
-  {
-    "id": "object-51",
-    "name": "Object 51 - 'Pockets'",
-    "desc": "Jewelry granting near-infinite time-frozen extradimensional inventory.",
-    "hook": "Unlock extreme storage only after a dangerous Level 9 extraction pursuit.",
-    "slot": "Trinket",
-    "rarity": "rare",
-    "cost": 3554.88,
-    "stats": {
-      "clickMult": 1.225,
-      "prodMult": 1.225,
-      "luck": 0.075,
-      "crit": 0.0
-    },
-    "rating": 59,
-    "dropLevel": 18
-  },
-  {
-    "id": "object-5",
-    "name": "Object 5 - 'Candy'",
-    "desc": "Manufactured candy family with short supernatural buffs.",
-    "hook": "Use candies as vendor-crafted temporary buffs with flavor-specific affixes.",
-    "slot": "Light",
-    "rarity": "rare",
-    "cost": 3554.88,
-    "stats": {
-      "clickMult": 1.0,
-      "prodMult": 1.366,
-      "luck": 0.17,
-      "crit": 0.0
-    },
-    "rating": 53,
-    "dropLevel": 20
-  },
-  {
-    "id": "object-49",
-    "name": "Object 49 - 'Compression Cubes'",
-    "desc": "Capture cube expands into a lethal compression volume and punishes mistiming.",
-    "hook": "Reward precise placement and escape timing with devastating area compression.",
-    "slot": "Armor",
     "rarity": "common",
-    "cost": 9344.26,
-    "stats": {
-      "clickMult": 1.068,
-      "prodMult": 1.41,
-      "luck": 0.0,
-      "crit": 0.0
-    },
-    "rating": 15,
-    "dropLevel": 22
+    "cost": 100,
+    "stats": { "clickMult": 1.15, "prodMult": 1.0, "luck": 0.0, "crit": 0.03 },
+    "rating": 10,
+    "minDelveRoom": 3
   },
   {
-    "id": "object-216",
-    "name": "Object 216 - 'Hyrum Lanterns'",
-    "desc": "Faith-powered lantern repels entities, burns hostiles, and calms its holder.",
-    "hook": "Scale a defensive light aura through conviction and expose enemies to focused illumination.",
-    "slot": "Light",
+    "id": "weapon-firesalt-shard",
+    "name": "Firesalt Shard",
+    "desc": "A fragment of explosive crystal. Warm to the touch, volatile in a fist.",
+    "hook": "Refined from raw Object 15 — size determines whether it's a grenade or a blade.",
+    "slot": "Weapon",
     "rarity": "uncommon",
-    "cost": 12848.4,
-    "stats": {
-      "clickMult": 1.0,
-      "prodMult": 1.376,
-      "luck": 0.15,
-      "crit": 0.0
-    },
-    "rating": 50,
-    "dropLevel": 24
+    "cost": 500,
+    "stats": { "clickMult": 1.28, "prodMult": 1.0, "luck": 0.0, "crit": 0.06 },
+    "rating": 25,
+    "minDelveRoom": 8
   },
   {
-    "id": "object-48",
-    "name": "Object 48 - 'Liquid Pain'",
-    "desc": "Deadly Almond Water look-alike and forbidden poison reagent.",
-    "hook": "Make unidentified healing drops potentially catastrophic until tested or purified.",
+    "id": "weapon-lightning-bottle",
+    "name": "Lightning In A Bottle",
+    "desc": "Trapped electrical charge that arcs through anything conductive — including entities.",
+    "hook": "Fragile, deadly, and eager to find the nearest conductor.",
     "slot": "Weapon",
     "rarity": "rare",
-    "cost": 16352.4,
-    "stats": {
-      "clickMult": 1.51,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.13
-    },
+    "cost": 2500,
+    "stats": { "clickMult": 1.40, "prodMult": 1.0, "luck": 0.0, "crit": 0.09 },
+    "rating": 45,
+    "minDelveRoom": 13
+  },
+  {
+    "id": "weapon-liquid-pain",
+    "name": "Liquid Pain Vial",
+    "desc": "A forbidden poison disguised as Almond Water. One splash dissolves entity flesh.",
+    "hook": "Unidentified until tested — the cure looks identical to the killer.",
+    "slot": "Weapon",
+    "rarity": "rare",
+    "cost": 12000,
+    "stats": { "clickMult": 1.52, "prodMult": 1.0, "luck": 0.0, "crit": 0.12 },
     "rating": 60,
-    "dropLevel": 26
+    "minDelveRoom": 18
   },
   {
-    "id": "object-99",
-    "name": "Object 99 - 'Hermes Device'",
-    "desc": "Biomechanical level-jump device built from a brain, key, liquid, and electricity.",
-    "hook": "Require degrading biological and anomalous components for constrained group travel.",
+    "id": "weapon-voidstone-edge",
+    "name": "Voidstone Edge",
+    "desc": "A blade of frictionless, indestructible stone. Cuts through anything without resistance.",
+    "hook": "Immutable material — the edge never dulls because nothing can wear it down.",
+    "slot": "Weapon",
+    "rarity": "epic",
+    "cost": 60000,
+    "stats": { "clickMult": 1.65, "prodMult": 1.0, "luck": 0.0, "crit": 0.15 },
+    "rating": 78,
+    "minDelveRoom": 23
+  },
+  {
+    "id": "weapon-retributor",
+    "name": "Retributor Pistol",
+    "desc": "Soul-bound firearm that scales with the wielder's will — and mirrors their wounds back.",
+    "hook": "The stronger your resolve, the harder it hits. The pain is shared.",
+    "slot": "Weapon",
+    "rarity": "epic",
+    "cost": 300000,
+    "stats": { "clickMult": 1.78, "prodMult": 1.0, "luck": 0.0, "crit": 0.18 },
+    "rating": 90,
+    "minDelveRoom": 28
+  },
+  {
+    "id": "weapon-abyssal-blade",
+    "name": "Abyssal Blade",
+    "desc": "A weapon forged in the deepest dark. It hums with hunger and never stops drinking.",
+    "hook": "Only found in the Abyss — it cuts holes in reality itself.",
+    "slot": "Weapon",
+    "rarity": "mythic",
+    "cost": 1500000,
+    "stats": { "clickMult": 2.00, "prodMult": 1.0, "luck": 0.05, "crit": 0.22 },
+    "rating": 120,
+    "minDelveRoom": 33,
+    "abyssOnly": true
+  },
+
+  // ===== LIGHT (production + luck) — 7 items =====
+  {
+    "id": "light-glowstick",
+    "name": "Glowstick Remnant",
+    "desc": "A dying chemical light. Faint, flickering, but it pushes back the dark for now.",
+    "hook": "Found clutched in the hand of a previous wanderer who didn't make it.",
+    "slot": "Light",
+    "rarity": "common",
+    "cost": 100,
+    "stats": { "clickMult": 1.0, "prodMult": 1.15, "luck": 0.03, "crit": 0.0 },
+    "rating": 10,
+    "minDelveRoom": 3
+  },
+  {
+    "id": "light-warpberry-lantern",
+    "name": "Warpberry Lantern",
+    "desc": "Berries sealed in a glass casing that glow brighter near their discovery level.",
+    "hook": "Crafted from Object 74 — the light remembers where it was born.",
+    "slot": "Light",
+    "rarity": "uncommon",
+    "cost": 500,
+    "stats": { "clickMult": 1.0, "prodMult": 1.28, "luck": 0.06, "crit": 0.0 },
+    "rating": 25,
+    "minDelveRoom": 8
+  },
+  {
+    "id": "light-hyrum-lantern",
+    "name": "Hyrum Lantern",
+    "desc": "Faith-powered lamp that repels entities and calms the holder's nerves.",
+    "hook": "The flame burns brighter with conviction — and sears those who lack it.",
+    "slot": "Light",
+    "rarity": "rare",
+    "cost": 2500,
+    "stats": { "clickMult": 1.0, "prodMult": 1.40, "luck": 0.09, "crit": 0.0 },
+    "rating": 45,
+    "minDelveRoom": 13
+  },
+  {
+    "id": "light-candy-beacon",
+    "name": "Candy Beacon",
+    "desc": "A stack of glowing candies arranged into a crude signal tower.",
+    "hook": "Manufactured buffs, repurposed as a light source. Sweet and dangerous.",
+    "slot": "Light",
+    "rarity": "rare",
+    "cost": 12000,
+    "stats": { "clickMult": 1.0, "prodMult": 1.52, "luck": 0.12, "crit": 0.0 },
+    "rating": 60,
+    "minDelveRoom": 18
+  },
+  {
+    "id": "light-seer-tea-lamp",
+    "name": "Seer Tea Lamp",
+    "desc": "A lamp fueled by precognitive tea. Its light flickers toward things yet to come.",
+    "hook": "Brewed from entity remains — the flame sees a second into the future.",
+    "slot": "Light",
+    "rarity": "epic",
+    "cost": 60000,
+    "stats": { "clickMult": 1.0, "prodMult": 1.65, "luck": 0.15, "crit": 0.0 },
+    "rating": 78,
+    "minDelveRoom": 23
+  },
+  {
+    "id": "light-starlight-vessel",
+    "name": "Starlight Vessel",
+    "desc": "A bottle of captured starlight from a level where the ceiling opened to a void sky.",
+    "hook": "The light never dims — it's not from this place.",
+    "slot": "Light",
+    "rarity": "epic",
+    "cost": 300000,
+    "stats": { "clickMult": 1.0, "prodMult": 1.78, "luck": 0.18, "crit": 0.0 },
+    "rating": 90,
+    "minDelveRoom": 28
+  },
+  {
+    "id": "light-abyssal-eye",
+    "name": "Abyssal Eye",
+    "desc": "A floating, luminous eye that sees through every wall. It blinks when danger approaches.",
+    "hook": "Plucked from something that lived in the Abyss. It still watches.",
+    "slot": "Light",
+    "rarity": "mythic",
+    "cost": 1500000,
+    "stats": { "clickMult": 1.0, "prodMult": 2.00, "luck": 0.25, "crit": 0.0 },
+    "rating": 120,
+    "minDelveRoom": 33,
+    "abyssOnly": true
+  },
+
+  // ===== ARMOR (balanced click + prod) — 7 items =====
+  {
+    "id": "armor-torn-hazmat",
+    "name": "Torn Hazmat Suit",
+    "desc": "A patched, yellowed suit that still filters the worst of the air. Barely.",
+    "hook": "Standard issue for wanderers who expected contamination, not entities.",
+    "slot": "Armor",
+    "rarity": "common",
+    "cost": 100,
+    "stats": { "clickMult": 1.08, "prodMult": 1.08, "luck": 0.0, "crit": 0.0 },
+    "rating": 10,
+    "minDelveRoom": 3
+  },
+  {
+    "id": "armor-compression-cube",
+    "name": "Compression Cube Plate",
+    "desc": "Armor woven from captured compression volumes. Punishes anything that strikes it.",
+    "hook": "Mistime the compression and it folds you instead of the attacker.",
+    "slot": "Armor",
+    "rarity": "uncommon",
+    "cost": 500,
+    "stats": { "clickMult": 1.12, "prodMult": 1.12, "luck": 0.0, "crit": 0.0 },
+    "rating": 25,
+    "minDelveRoom": 8
+  },
+  {
+    "id": "armor-temporal-watch",
+    "name": "Temporal Apotheosis Vest",
+    "desc": "A vest threaded with pocket-watch gears that occasionally rewinds a fatal blow.",
+    "hook": "The countdown ticks. When it hits zero, reality stutters and you're somewhere else.",
+    "slot": "Armor",
+    "rarity": "rare",
+    "cost": 2500,
+    "stats": { "clickMult": 1.16, "prodMult": 1.16, "luck": 0.0, "crit": 0.0 },
+    "rating": 45,
+    "minDelveRoom": 13
+  },
+  {
+    "id": "armor-dark-reparation",
+    "name": "Dark Reparation Plate",
+    "desc": "Armor forged from unidentified vials. It heals you in ways you'd rather not examine.",
+    "hook": "The crystal colors change every time you look away. Don't drink the runoff.",
+    "slot": "Armor",
+    "rarity": "rare",
+    "cost": 12000,
+    "stats": { "clickMult": 1.20, "prodMult": 1.20, "luck": 0.0, "crit": 0.0 },
+    "rating": 60,
+    "minDelveRoom": 18
+  },
+  {
+    "id": "armor-wall-mask",
+    "name": "Wall Mask Carapace",
+    "desc": "A cursed mask fused to chest armor. It grants power and whispers what to do with it.",
+    "hook": "The mask chooses the wearer. The behavior changes are... optional. Mostly.",
+    "slot": "Armor",
+    "rarity": "epic",
+    "cost": 60000,
+    "stats": { "clickMult": 1.24, "prodMult": 1.24, "luck": 0.0, "crit": 0.0 },
+    "rating": 78,
+    "minDelveRoom": 23
+  },
+  {
+    "id": "armor-mirror-aegis",
+    "name": "Mirror Aegis",
+    "desc": "A shield of polished Backrooms glass. Entities see themselves in it and hesitate.",
+    "hook": "Reflections in this glass don't match. That's the point — that's the defense.",
+    "slot": "Armor",
+    "rarity": "epic",
+    "cost": 300000,
+    "stats": { "clickMult": 1.28, "prodMult": 1.28, "luck": 0.0, "crit": 0.0 },
+    "rating": 90,
+    "minDelveRoom": 28
+  },
+  {
+    "id": "armor-abyssal-carapace",
+    "name": "Abyssal Carapace",
+    "desc": "Armor grown from Abyssal chitin. It adapts to whatever the dark throws at you.",
+    "hook": "It was alive once. Parts of it still are. It remembers the shape of its host.",
+    "slot": "Armor",
+    "rarity": "mythic",
+    "cost": 1500000,
+    "stats": { "clickMult": 1.35, "prodMult": 1.35, "luck": 0.0, "crit": 0.05 },
+    "rating": 120,
+    "minDelveRoom": 33,
+    "abyssOnly": true
+  },
+
+  // ===== TRINKET (luck + balanced) — 7 items =====
+  {
+    "id": "trinket-level-key",
+    "name": "Level Key Fragment",
+    "desc": "A broken key still warm with attunement. It hums near locked doors.",
+    "hook": "Half a key from Object 2 — enough to open half a door, which is sometimes enough.",
+    "slot": "Trinket",
+    "rarity": "common",
+    "cost": 100,
+    "stats": { "clickMult": 1.06, "prodMult": 1.06, "luck": 0.04, "crit": 0.0 },
+    "rating": 10,
+    "minDelveRoom": 3
+  },
+  {
+    "id": "trinket-almond-flask",
+    "name": "Almond Water Flask",
+    "desc": "A sealed flask of the lifeblood of the Backrooms. Trade it, drink it, or wield it.",
+    "hook": "Object 1 in its purest form — the contaminated variants are worth more... and worse.",
+    "slot": "Trinket",
+    "rarity": "uncommon",
+    "cost": 500,
+    "stats": { "clickMult": 1.10, "prodMult": 1.10, "luck": 0.07, "crit": 0.0 },
+    "rating": 25,
+    "minDelveRoom": 8
+  },
+  {
+    "id": "trinket-pockets",
+    "name": "Pockets",
+    "desc": "A small jewel that opens into a frozen, infinite inventory space.",
+    "hook": "Time stops inside. Pull out what you need, when you need it — if you can find it.",
     "slot": "Trinket",
     "rarity": "rare",
-    "cost": 16352.4,
-    "stats": {
-      "clickMult": 1.255,
-      "prodMult": 1.255,
-      "luck": 0.075,
-      "crit": 0.0
-    },
-    "rating": 59,
-    "dropLevel": 28
+    "cost": 2500,
+    "stats": { "clickMult": 1.14, "prodMult": 1.14, "luck": 0.10, "crit": 0.0 },
+    "rating": 45,
+    "minDelveRoom": 13
   },
   {
-    "id": "object-2",
-    "name": "Object 2 - 'Level Keys'",
-    "desc": "Rare keys bound to specific levels and useful for route discovery and fast travel.",
-    "hook": "Build a key economy around level attunement, harmonic appraisal, and counterfeits.",
+    "id": "trinket-hermes-compass",
+    "name": "Hermes Compass",
+    "desc": "A biomechanical navigation device built from a brain, a key, and liquid electricity.",
+    "hook": "Object 99 miniaturized — it points toward exits. Sometimes it points toward things that point back.",
     "slot": "Trinket",
-    "rarity": "common",
-    "cost": 42983.6,
-    "stats": {
-      "clickMult": 1.235,
-      "prodMult": 1.235,
-      "luck": 0.045,
-      "crit": 0.0
-    },
-    "rating": 38,
-    "dropLevel": 29
+    "rarity": "rare",
+    "cost": 12000,
+    "stats": { "clickMult": 1.18, "prodMult": 1.18, "luck": 0.12, "crit": 0.0 },
+    "rating": 60,
+    "minDelveRoom": 18
   },
   {
-    "id": "object-50",
-    "name": "Object 50 - 'Voidstone'",
-    "desc": "Indestructible, immovable, frictionless material with immense thermal capacity.",
-    "hook": "Use immutable Voidstone as both machinery component and obstacle-defining terrain.",
-    "slot": "Weapon",
-    "rarity": "uncommon",
-    "cost": 59102.4,
-    "stats": {
-      "clickMult": 1.52,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.12
-    },
-    "rating": 51,
-    "dropLevel": 31
-  },
-  {
-    "id": "object-45",
-    "name": "Object 45 - 'Ariadne's String'",
-    "desc": "Navigation relic that reveals exits, bases, hazards, entities, and maze instructions.",
-    "hook": "Provide contextual direction while anomalous zones distort the string's answers.",
+    "id": "trinket-cookbook-tome",
+    "name": "Ultimate Cookbook Tome",
+    "desc": "A recipe book that combines Backrooms objects into food, drinks, and Memory Juice.",
+    "hook": "Each page unlocked is a new buff recipe. Some pages are stuck together with something.",
     "slot": "Trinket",
-    "rarity": "common",
-    "cost": 197724,
-    "stats": {
-      "clickMult": 1.265,
-      "prodMult": 1.265,
-      "luck": 0.045,
-      "crit": 0.0
-    },
-    "rating": 19,
-    "dropLevel": 33
+    "rarity": "epic",
+    "cost": 60000,
+    "stats": { "clickMult": 1.22, "prodMult": 1.22, "luck": 0.15, "crit": 0.0 },
+    "rating": 78,
+    "minDelveRoom": 23
   },
   {
-    "id": "object-80",
-    "name": "Object 80 - 'Retributors'",
-    "desc": "Soul-bound firearm whose power scales with will while reflecting wounds and instability.",
-    "hook": "Scale damage with resolve but mirror target pain and spiritual strain onto the wielder.",
-    "slot": "Weapon",
-    "rarity": "uncommon",
-    "cost": 271871,
-    "stats": {
-      "clickMult": 1.58,
-      "prodMult": 1.0,
-      "luck": 0.0,
-      "crit": 0.13
-    },
-    "rating": 51,
-    "dropLevel": 35
+    "id": "trinket-ariadne-string",
+    "name": "Ariadne's String",
+    "desc": "A navigation relic that reveals exits, hazards, entities, and maze instructions.",
+    "hook": "The string knows the way. Anomalous zones make it lie, but it lies consistently.",
+    "slot": "Trinket",
+    "rarity": "epic",
+    "cost": 300000,
+    "stats": { "clickMult": 1.26, "prodMult": 1.26, "luck": 0.18, "crit": 0.0 },
+    "rating": 90,
+    "minDelveRoom": 28
+  },
+  {
+    "id": "trinket-abyssal-core",
+    "name": "Abyssal Core",
+    "desc": "A pulsing orb of compressed dark. It bends luck itself toward you.",
+    "hook": "The Abyss gave this up reluctantly. It still pulls, gently, toward the deep.",
+    "slot": "Trinket",
+    "rarity": "mythic",
+    "cost": 1500000,
+    "stats": { "clickMult": 1.33, "prodMult": 1.33, "luck": 0.25, "crit": 0.05 },
+    "rating": 120,
+    "minDelveRoom": 33,
+    "abyssOnly": true
   }
 ];
 

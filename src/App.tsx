@@ -18,7 +18,6 @@ import {
   allyCount,
   gearBySlot,
   eligibleDrops,
-  searchGoal,
   ACHIEVEMENTS,
   SLOTS,
   xpNeed,
@@ -45,6 +44,10 @@ const EVENT_ICON: Record<EventKind, string> = {
   entity: '☠',
   fork: '⑂',
   shrine: '✧',
+  treasure: '✦',
+  trap: '⚠',
+  altar: '⛿',
+  boss: '☠',
 };
 
 export default function App() {
@@ -193,21 +196,16 @@ export default function App() {
 
           {(() => {
             const elig = eligibleDrops(s);
-            const hereCount = elig.filter((it) => it.dropLevel === s.levelIndex).length;
-            const pct = Math.min(100, (s.searchProgress / searchGoal(s)) * 100);
             return (
               <div className="scavenge">
                 <div className="combo-head">
-                  <span>Scavenging {lvl.name.replace(/^.*?- /, '').replace(/["“”']/g, '')}</span>
-                  <span>{elig.length > 0 ? `${elig.length} item${elig.length > 1 ? 's' : ''} left to find` : 'nothing more here'}</span>
+                  <span>Delve for Gear</span>
+                  <span>{elig.length > 0 ? `${elig.length} item${elig.length > 1 ? 's' : ''} undiscovered` : 'all gear found'}</span>
                 </div>
-                <div className="bar small"><div className="bar-fill scav-fill" style={{ width: `${elig.length > 0 ? pct : 100}%` }} /></div>
                 <div className="combo-sub">
                   {elig.length > 0
-                    ? hereCount > 0
-                      ? `Explore this depth to find gear — click to search faster`
-                      : `Finding leftover gear from earlier depths`
-                    : `All gear here found — descend to discover more`}
+                    ? `Gear is found exclusively in Delve expeditions — push deeper for better items`
+                    : `You've found everything. Push the Abyss for mythic gear.`}
                 </div>
               </div>
             );
@@ -292,7 +290,7 @@ export default function App() {
                     return (
                       <button key={slot} className={`slot ${eq ? `rar-${eq.rarity}` : 'empty'} ${gearSlotFilter === slot ? 'sel' : ''}`} onClick={() => setGearSlotFilter(slot)}>
                         <span className="slot-name">{slot}</span>
-                        <span className="slot-item">{eq ? eq.name.replace(/^Object \d+ - /, '').replace(/["“”']/g, '') : '— empty —'}</span>
+                        <span className="slot-item">{eq ? eq.name : '— empty —'}</span>
                       </button>
                     );
                   })}
@@ -300,19 +298,18 @@ export default function App() {
                 <div className="list">
                   {gearBySlot(gearSlotFilter)
                     .slice()
-                    .sort((a, b) => a.dropLevel - b.dropLevel || a.cost - b.cost)
+                    .sort((a, b) => a.minDelveRoom - b.minDelveRoom || a.cost - b.cost)
                     .map((it) => {
                       const owned = s.gearOwned.includes(it.id);
                       const equipped = s.equipped[it.slot] === it.id;
-                      const reached = s.levelIndex >= it.dropLevel;
-                      return (
+                                            return (
                         <div key={it.id} className={`gear-row rar-${it.rarity} ${equipped ? 'equipped' : ''} ${owned ? '' : 'undiscovered'}`}>
                           <div className="row-main">
                             <div className="row-title">
                               <span>{owned ? it.name : '??? — undiscovered'}</span>
                               <span className={`rar-badge rar-${it.rarity}`}>{it.rarity}</span>
                             </div>
-                            <p className="row-desc">{owned ? it.hook : `Drops while exploring ${LEVELS[it.dropLevel].name}`}</p>
+                            <p className="row-desc">{owned ? it.hook : `Found in Delve at room ${it.minDelveRoom}${it.abyssOnly ? ' (Abyss only)' : ''}`}</p>
                             <p className="gear-stats">
                               {it.stats.clickMult > 1 && <span>⚔ ×{it.stats.clickMult.toFixed(2)} click</span>}
                               {it.stats.prodMult > 1 && <span>⚙ ×{it.stats.prodMult.toFixed(2)} prod</span>}
@@ -325,7 +322,7 @@ export default function App() {
                               {equipped ? 'Unequip' : 'Equip'}
                             </button>
                           ) : (
-                            <span className={`gear-drop ${reached ? 'here' : ''}`}>{reached ? 'searching…' : `Depth ${it.dropLevel}`}</span>
+                            <span className="gear-drop">Delve room {it.minDelveRoom}{it.abyssOnly ? ' (Abyss)' : ''}</span>
                           )}
                         </div>
                       );
@@ -338,7 +335,7 @@ export default function App() {
               <div className="delve">
                 <div className="delve-intro">
                   <h3>Expeditions</h3>
-                  <p>Slip into the walls and push room by room. Loot stays <b>unbanked</b> until you extract — get caught and it's gone. The deeper you go, the richer and deadlier it gets. This is the real way to hunt gear.</p>
+                  <p>Slip into the walls and push room by room. Loot stays <b>unbanked</b> until you extract — get caught and it's gone. Every delve rolls a random <b>modifier</b>. Every 5th room is a <b>boss</b> with guaranteed gear. The deeper you go, the better the items — mythic gear awaits in the Abyss.</p>
                   <button className="delve-start" disabled={!!s.encounter} onClick={() => g.startExpedition('normal')}>
                     ▸ Begin Expedition (Depth {s.levelIndex})
                   </button>
@@ -658,6 +655,12 @@ export default function App() {
                 <span className="enc-tag">{abyss ? '✦ THE ABYSS' : '▚ EXPEDITION'}</span>
                 <span className="exp-room">Room {exp.room + 1}</span>
               </div>
+              {exp.modifier.id !== 'normal' && (
+                <div className="exp-modifier">
+                  <span className="mod-name">{exp.modifier.name}</span>
+                  <span className="mod-desc">{exp.modifier.desc}</span>
+                </div>
+              )}
               <div className="exp-haul">
                 <div><b>{fmt(Math.round(exp.haulAw))}</b><span>AW haul</span></div>
                 <div><b>{fmt(Math.round(exp.haulXp))}</b><span>XP haul</span></div>

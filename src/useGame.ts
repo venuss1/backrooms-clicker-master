@@ -12,7 +12,7 @@ import {
   type GearSlot,
 } from './gameData';
 import { perkById, rollPerkChoices, type PerkKey } from './perks';
-import { rollEvent, type Expedition, type ExpeditionMode } from './expedition';
+import { rollEvent, rollModifier, type Expedition, type ExpeditionMode } from './expedition';
 import { sfx } from './sound';
 import { computeBonuses, canUnlockNode, skillNodeById, type SkillBonuses } from './skillTree';
 
@@ -103,6 +103,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'gear-1', name: 'Kitted Out', desc: 'Equip your first item.', test: (s) => Object.keys(s.equipped).length >= 1 },
   { id: 'gear-full', name: 'Fully Geared', desc: 'Fill all 4 equipment slots.', test: (s) => SLOTS.every((sl) => s.equipped[sl]) },
   { id: 'gear-legendary', name: 'Legend', desc: 'Equip a legendary item.', test: (s) => Object.values(s.equipped).some((id) => GEAR.find((g) => g.id === id)?.rarity === 'legendary') },
+  { id: 'gear-mythic', name: 'Myth Bearer', desc: 'Equip a mythic item from the Abyss.', test: (s) => Object.values(s.equipped).some((id) => GEAR.find((g) => g.id === id)?.rarity === 'mythic') },
   { id: 'level-5', name: 'Going Deeper', desc: 'Reach depth 5.', test: (s) => s.levelIndex >= 5 },
   { id: 'level-15', name: 'Lost For Good', desc: 'Reach depth 15.', test: (s) => s.levelIndex >= 15 },
   { id: 'level-max', name: 'The Bottom', desc: 'Reach the deepest level.', test: (s) => s.levelIndex >= LEVELS.length - 1 },
@@ -115,6 +116,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'xp-20', name: 'Veteran', desc: 'Reach Explorer level 20.', test: (s) => s.xpLevel >= 20 },
   { id: 'perk-5', name: 'Specialist', desc: 'Choose 5 perks.', test: (s) => s.perks.length >= 5 },
   { id: 'delve-1', name: 'Delver', desc: 'Extract from an expedition.', test: (s) => s.achievements.includes('delve-1') },
+  { id: 'delve-deep', name: 'Deep Diver', desc: 'Reach delve room 15.', test: (s) => s.deepestAbyss >= 15 || s.achievements.includes('delve-deep') },
   { id: 'abyss-10', name: 'Into the Abyss', desc: 'Reach Abyss room 10.', test: (s) => s.deepestAbyss >= 10 },
 ];
 
@@ -348,15 +350,8 @@ export function gearBySlot(slot: GearSlot): Gear[] {
 
 // Gear you can currently find (its drop level is at or above where you are, not yet owned)
 export function eligibleDrops(s: GameState): Gear[] {
-  return GEAR.filter((g) => g.dropLevel <= s.levelIndex && !s.gearOwned.includes(g.id));
-}
-
-// Effort (≈ seconds of active play) needed to scavenge the next drop on this level
-export function searchGoal(s: GameState): number {
-  let g = 14 + s.gearOwned.length * 2.5;
-  g = Math.min(g, 48);
-  g *= 1 - Math.min(0.5, gearLuck(s));
-  return g;
+  // Gear is now delve-exclusive; this returns all unowned gear for display purposes
+  return GEAR.filter((g) => !s.gearOwned.includes(g.id));
 }
 
 // ---------- Floating click numbers ----------
@@ -371,23 +366,25 @@ export interface FloatNum {
 let floatId = 0;
 let toastId = 0;
 
-// Rarity weights for gear drops — rarer items are genuinely rare (industry standard 60/25/10/4/1,
-// slightly more generous for a single-player game with a finite pool).
+// Rarity weights for delve gear drops — rarer items are genuinely rare.
+// Mythic items only appear in abyss delves at deep rooms.
 const RARITY_WEIGHTS: Record<string, number> = {
-  common: 50,
-  uncommon: 27,
-  rare: 15,
-  epic: 6,
-  legendary: 2,
+  common: 45,
+  uncommon: 28,
+  rare: 16,
+  epic: 8,
+  legendary: 3,
+  mythic: 0,
 };
 
 // Rarity weights shifted by Noclipper "Lucky Streak" skill
 const RARITY_WEIGHTS_SHIFTED: Record<string, number> = {
-  common: 30,
+  common: 25,
   uncommon: 27,
-  rare: 20,
-  epic: 12,
-  legendary: 6,
+  rare: 22,
+  epic: 14,
+  legendary: 8,
+  mythic: 4,
 };
 
 function weightedGearPick(pool: Gear[], rarityShift: number = 0): Gear {
@@ -418,18 +415,9 @@ export function useGame() {
   }, []);
 
   const grantGear = useCallback(
-    (reason: string) => {
-      const s = stateRef.current;
-      const pool = eligibleDrops(s);
-      if (pool.length === 0) return false;
-      // prefer gear native to the current depth, else anything eligible
-      const here = pool.filter((g) => g.dropLevel === s.levelIndex);
-      const from = here.length > 0 ? here : pool;
-      const pick = weightedGearPick(from, skillBonuses(s).rarityShift);
-      s.gearOwned.push(pick.id);
-      if (s.settings.sound) sfx.win();
-      pushToast('loot', `${reason}: found ${pick.name} (${pick.rarity})!`);
-      return true;
+    (_reason: string) => {
+      // Gear is now delve-exclusive — this is kept for compatibility but does nothing
+      return false;
     },
     [pushToast],
   );
@@ -528,7 +516,6 @@ export function useGame() {
       s.totalAw += power;
       s.lifetimeAw += power;
       s.clicks += 1;
-      s.searchProgress += 0.4 * sb.scavengeMult; // clicking speeds up scavenging
       gainXp(0.6 * sb.xpMult);
 
       if (s.settings.sound) sfx.click(comboRef.current);
@@ -572,7 +559,6 @@ export function useGame() {
       } else {
         pushToast('win', `Escaped ${enc.name}! +${Math.round(enc.reward)} AW`);
         gainXp(enc.boss ? 45 : 14);
-        if (Math.random() < 0.35 + gearLuck(s)) grantGear('Loot');
         // breather before the next encounter can spawn
         s.encounterCooldownUntil = performance.now() + 45_000;
       }
@@ -620,6 +606,7 @@ export function useGame() {
       if (mode === 'abyss' && !s.finaleDefeated) return;
       const sb = skillBonuses(s);
       const baseRisk = (mode === 'abyss' ? 0.08 : 0.03) * sb.expeditionRiskMult;
+      const modifier = rollModifier();
       s.expedition = {
         mode,
         depth: s.levelIndex,
@@ -633,9 +620,11 @@ export function useGame() {
         over: 'active',
         log: [],
         lastText: mode === 'abyss' ? 'You step off the edge into the Abyss.' : 'You slip into the walls to explore.',
+        modifier,
       };
       if (s.settings.sound) sfx.event();
-      pushToast('event', mode === 'abyss' ? 'Descending into the Abyss...' : 'Expedition started!');
+      const modText = modifier.id !== 'normal' ? ` [${modifier.name}]` : '';
+      pushToast('event', mode === 'abyss' ? `Descending into the Abyss...${modText}` : `Expedition started!${modText}`);
       rerender();
     },
     [pushToast, rerender],
@@ -650,18 +639,27 @@ export function useGame() {
       const luck = gearLuck(s);
       const expBonus = perkStat(s, 'expedition');
       const roomN = exp.room + 1;
-      const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * skillBonuses(s).expeditionLootMult;
-      const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus))); };
+      const mod = exp.modifier;
+      const base = (productionPerSec(s) * 12 + baseClickPower(s) * 25 + 100) * roomN * (exp.mode === 'abyss' ? 2.2 : 1) * (1 + expBonus) * skillBonuses(s).expeditionLootMult * mod.lootMult;
+      const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus)) * mod.riskMult); };
 
-      const grantExpGear = (): string | null => {
+      // Depth-based gear pool: items require minDelveRoom <= current room number
+      const grantExpGear = (force: boolean = false): string | null => {
         const owned = new Set([...s.gearOwned, ...exp.haulGear]);
         const sb = skillBonuses(s);
-        let pool = GEAR.filter((g) => !owned.has(g.id) && (sb.expeditionAnyDepth || exp.mode === 'abyss' || g.dropLevel <= exp.depth));
-        if (pool.length === 0) pool = GEAR.filter((g) => !owned.has(g.id));
+        let pool = GEAR.filter((g) => {
+          if (owned.has(g.id)) return false;
+          if (g.minDelveRoom > roomN) return false;
+          if (g.abyssOnly && exp.mode !== 'abyss') return false;
+          return true;
+        });
+        if (pool.length === 0) {
+          pool = GEAR.filter((g) => !owned.has(g.id) && (!g.abyssOnly || exp.mode === 'abyss'));
+        }
         if (pool.length === 0) return null;
-        const pk = weightedGearPick(pool, skillBonuses(s).rarityShift);
+        const pk = weightedGearPick(pool, sb.rarityShift + (force ? 2 : 0));
         exp.haulGear.push(pk.id);
-        return pk.name.replace(/^Object \d+ - /, '').replace(/["“”']/g, '');
+        return pk.name;
       };
 
       const caught = (text: string) => {
@@ -672,11 +670,34 @@ export function useGame() {
       };
 
       let text = '';
-      if (ev.kind === 'cache') {
+      if (ev.kind === 'boss') {
+        if (optId === 'retreat') {
+          exp.over = 'extracted';
+          exp.phase = 'done';
+          exp.lastText = 'You retreat from the guardian, hauling what you have.';
+          if (s.settings.sound) sfx.win();
+          s.aw += exp.haulAw; s.totalAw += exp.haulAw; s.lifetimeAw += exp.haulAw;
+          for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
+          gainXp(exp.haulXp);
+          rerender();
+          return;
+        }
+        const win = Math.random() < Math.max(0.20, Math.min(0.85, 0.40 + gearCrit(s) + luck * 0.5 + expBonus * 0.3 - exp.room * 0.015));
+        if (win) {
+          const aw = base * 3.0;
+          exp.haulAw += aw; exp.haulXp += 50 * roomN;
+          const g = grantExpGear(true);
+          text = `Slew ${ev.name}! +${Math.round(aw)} AW${g ? `, it dropped ${g}!` : ''}`;
+        } else {
+          caught(`${ev.name} crushed you — your entire haul is lost.`);
+          rerender();
+          return;
+        }
+      } else if (ev.kind === 'cache') {
         if (optId === 'open') {
           const aw = base * 1.2;
           exp.haulAw += aw; exp.haulXp += 8 * roomN; addRisk(0.02);
-          const g = Math.random() < 0.42 + luck ? grantExpGear() : null;
+          const g = Math.random() < 0.25 + luck + mod.gearBonus ? grantExpGear() : null;
           text = `Pried the cache: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
         } else {
           const aw = base * 0.5;
@@ -689,10 +710,12 @@ export function useGame() {
           if (win) {
             const aw = base * 1.7;
             exp.haulAw += aw; exp.haulXp += 15 * roomN;
-            const g = Math.random() < 0.55 + luck ? grantExpGear() : null;
+            const g = Math.random() < 0.35 + luck + mod.gearBonus ? grantExpGear() : null;
             text = `Slew ${ev.name}: +${Math.round(aw)} AW${g ? `, dropped ${g}!` : ''}`;
           } else {
             caught(`${ev.name} overwhelmed you — your haul is lost.`);
+            rerender();
+            return;
           }
         } else if (optId === 'sneak') {
           const ok = Math.random() < Math.max(0.1, Math.min(0.9, 0.42 + luck + expBonus * 0.3 - exp.room * 0.03));
@@ -711,14 +734,13 @@ export function useGame() {
       } else if (ev.kind === 'fork') {
         if (Math.random() < 0.6) {
           const aw = base * 1.3; exp.haulAw += aw; exp.haulXp += 10 * roomN;
-          const g = Math.random() < 0.3 + luck ? grantExpGear() : null;
+          const g = Math.random() < 0.20 + luck + mod.gearBonus ? grantExpGear() : null;
           text = `The passage opened up: +${Math.round(aw)} AW${g ? `, found ${g}!` : ''}`;
         } else {
           const loss = exp.haulAw * 0.3; exp.haulAw -= loss; addRisk(0.1);
           text = `A trap! Lost ${Math.round(loss)} AW and drew attention.`;
         }
-      } else {
-        // shrine
+      } else if (ev.kind === 'shrine') {
         if (optId === 'attune') {
           exp.haulXp += 22 * roomN;
           const aw = base * 0.6; exp.haulAw += aw;
@@ -726,12 +748,55 @@ export function useGame() {
         } else {
           if (Math.random() < 0.55) {
             const aw = base * 2.2; exp.haulAw += aw; exp.haulXp += 12 * roomN;
-            const g = Math.random() < 0.5 + luck ? grantExpGear() : null;
+            const g = Math.random() < 0.40 + luck + mod.gearBonus ? grantExpGear() : null;
             text = `Harvested ${ev.name}: +${Math.round(aw)} AW${g ? `, tore loose ${g}!` : ''}`;
           } else {
             addRisk(0.2);
             text = `${ev.name} lashed out — risk surges!`;
           }
+        }
+      } else if (ev.kind === 'treasure') {
+        if (optId === 'pry') {
+          const g = Math.random() < 0.60 + luck + mod.gearBonus ? grantExpGear() : null;
+          const aw = base * 0.4; exp.haulAw += aw;
+          addRisk(0.08);
+          text = `Tore the wall open: ${g ? `found ${g}!` : 'nothing behind it.'} +${Math.round(aw)} AW. The noise echoes.`;
+        } else {
+          text = `You left it behind. Some things aren't worth the risk.`;
+        }
+      } else if (ev.kind === 'trap') {
+        if (optId === 'disarm') {
+          const ok = Math.random() < Math.max(0.2, Math.min(0.85, 0.45 + luck + expBonus * 0.3));
+          if (ok) {
+            const aw = base * 0.8; exp.haulAw += aw; exp.haulXp += 8 * roomN;
+            const g = Math.random() < 0.15 + luck + mod.gearBonus ? grantExpGear() : null;
+            text = `Disarmed it! Salvaged +${Math.round(aw)} AW${g ? ` and found ${g}!` : ''}`;
+          } else {
+            addRisk(0.12);
+            const loss = exp.haulAw * 0.2; exp.haulAw -= loss;
+            text = `It went off! Lost ${Math.round(loss)} AW, risk climbing.`;
+          }
+        } else {
+          addRisk(-0.03);
+          text = `You wait until the mechanism resets. Tense, but safe.`;
+        }
+      } else if (ev.kind === 'altar') {
+        if (optId === 'offer-aw') {
+          const cost = exp.haulAw * 0.3;
+          exp.haulAw -= cost;
+          exp.risk = Math.max(0, exp.risk - 0.10);
+          text = `You poured ${Math.round(cost)} AW onto the altar. The air grows calmer — risk reduced.`;
+        } else if (optId === 'offer-gear') {
+          if (exp.haulGear.length > 0) {
+            exp.haulGear.pop();
+            exp.haulXp += 40 * roomN;
+            const g = grantExpGear(true);
+            text = `The altar consumed an item.${g ? ` In return, it revealed ${g}!` : ''} +${40 * roomN} XP.`;
+          } else {
+            text = `You have no gear to offer. The altar ignores you.`;
+          }
+        } else {
+          text = `You walk past the altar. It watches you leave.`;
         }
       }
 
@@ -743,7 +808,7 @@ export function useGame() {
       exp.log = [...exp.log, text].slice(-5);
       rerender();
     },
-    [rerender],
+    [rerender, gainXp],
   );
 
   const expeditionDeeper = useCallback(() => {
@@ -764,7 +829,7 @@ export function useGame() {
       s.deepestAbyss = exp.room;
       checkAchievements();
     }
-    exp.risk = Math.min(0.9, exp.risk + (exp.mode === 'abyss' ? 0.04 : 0.025) * skillBonuses(s).expeditionRiskMult * (1 - Math.min(0.6, perkStat(s, 'expedition'))));
+    exp.risk = Math.min(0.9, exp.risk + (exp.mode === 'abyss' ? 0.04 : 0.025) * skillBonuses(s).expeditionRiskMult * (1 - Math.min(0.6, perkStat(s, 'expedition'))) * exp.modifier.riskMult);
     exp.event = rollEvent(exp.room, exp.mode);
     exp.phase = 'event';
     if (s.settings.sound) sfx.descend();
@@ -908,20 +973,7 @@ export function useGame() {
         checkLevelUp();
       }
 
-      // Scavenge for gear that drops on this level (found, never bought)
-      if (s.searchLevel !== s.levelIndex) {
-        s.searchLevel = s.levelIndex;
-        s.searchProgress = 0;
-      }
-      if (!s.encounter && eligibleDrops(s).length > 0) {
-        s.searchProgress += dt * skillBonuses(s).scavengeMult;
-        if (s.searchProgress >= searchGoal(s)) {
-          s.searchProgress = 0;
-          grantGear('Scavenged');
-          gainXp(12 + s.levelIndex * 4);
-          checkAchievements();
-        }
-      }
+      // Gear is delve-exclusive now — no passive scavenging
 
       if (now - lastClickRef.current > skillBonuses(s).comboDecayMs && comboRef.current > 0) comboRef.current = 0;
       if (s.buff && now > s.buff.until) s.buff = null;
