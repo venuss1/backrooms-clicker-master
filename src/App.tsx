@@ -945,25 +945,17 @@ export default function App() {
                       .map((it) => {
                         const owned = s.gearOwned.includes(it.id);
                         const equipped = s.equipped[it.slot] === it.id;
-                        const lvl = LEVELS[it.levelIndex];
                         return (
-                          <div key={it.id} className={`wiki-item-card rar-${it.rarity} ${owned ? 'owned' : ''}`}>
+                          <div key={it.id} className={`wiki-item-card rar-${it.rarity} ${owned ? 'owned' : 'undiscovered'}`}>
                             <div className="wic-glow" />
-                            <div className="wic-header">
-                              <span className={`wic-rarity rar-badge rar-${it.rarity}`}>{it.rarity}</span>
-                              <span className="wic-slot">{it.slot}</span>
-                            </div>
-                            <span className="wic-name">{owned ? it.name : '???'}</span>
-                            <p className="wic-desc">{owned ? it.desc : 'Undiscovered — delve at this depth to find it.'}</p>
+                            <div className="wic-rays" />
+                            <span className="wic-label">{owned ? (equipped ? 'EQUIPPED' : 'OWNED') : 'UNDISCOVERED'}</span>
+                            <span className={`wic-rarity rar-badge rar-${it.rarity}`}>{it.rarity}</span>
+                            <span className="wic-slot">{it.slot}</span>
+                            <h2 className="wic-name">{owned ? it.name : '???'}</h2>
+                            <p className="wic-desc">{owned ? it.desc : 'Delve at this depth to find it.'}</p>
                             {owned && <p className="wic-hook">{it.hook}</p>}
-                            <div className="wic-depth">Depth {it.levelIndex} · {lvl?.name ?? '???'}</div>
-                            {equipped && <span className="wic-equipped">Equipped</span>}
-                            <div className="wic-stats">
-                              {it.stats.clickMult > 1 && <div className="wic-stat"><span className="gs-icon">⚡</span><span className="gs-val">+{((it.stats.clickMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Click</span></div>}
-                              {it.stats.prodMult > 1 && <div className="wic-stat"><span className="gs-icon">⚙</span><span className="gs-val">+{((it.stats.prodMult - 1) * 100).toFixed(0)}%</span><span className="gs-label">Prod</span></div>}
-                              {it.stats.luck > 0 && <div className="wic-stat"><span className="gs-icon">🍀</span><span className="gs-val">+{(it.stats.luck * 100).toFixed(0)}%</span><span className="gs-label">Luck</span></div>}
-                              {it.stats.crit > 0 && <div className="wic-stat"><span className="gs-icon">✧</span><span className="gs-val">+{(it.stats.crit * 100).toFixed(0)}%</span><span className="gs-label">Crit</span></div>}
-                            </div>
+                            {equipped && <span className="wic-equipped-badge">Equipped</span>}
                           </div>
                         );
                       })}
