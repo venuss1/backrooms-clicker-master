@@ -13,7 +13,7 @@ import {
 } from './gameData';
 import { perkById, rollPerkChoices, type PerkKey } from './perks';
 import { rollEvent, rollModifier, type Expedition, type ExpeditionMode } from './expedition';
-import { sfx } from './sound';
+import { sfx, setSfxVolume } from './sound';
 import { computeBonuses, canUnlockNode, skillNodeById, type SkillBonuses } from './skillTree';
 
 const SAVE_KEY = 'backrooms-clicker-save-v3';
@@ -23,6 +23,7 @@ export const SLOTS: GearSlot[] = ['Weapon', 'Light', 'Armor', 'Trinket'];
 export interface Settings {
   reduceMotion: boolean;
   sound: boolean;
+  volume: number; // 0..1
 }
 
 export interface ActiveBuff {
@@ -59,7 +60,8 @@ export interface GameState {
   generators: Record<string, number>;
   gearOwned: string[];
   equipped: Partial<Record<GearSlot, string>>;
-  levelIndex: number;
+  levelIndex: number; // current level the player is exploring
+  maxLevelReached: number; // deepest level ever unlocked (for going back)
   defeated: string[];
   achievements: string[];
   echoes: number; // unspent rebirth currency
@@ -79,6 +81,7 @@ export interface GameState {
   perks: string[]; // chosen perk ids (stackable)
   perkTokens: number; // unspent perk picks
   pendingPerks: string[] | null; // current perk choices, or null
+  pendingLevelUp: boolean; // true when a level-up popup should show first
   expedition: Expedition | null;
   deepestAbyss: number; // deepest abyss room ever reached (permanent multiplier)
   encounterCooldownUntil: number; // performance.now() timestamp; no encounters spawn before this
@@ -130,6 +133,7 @@ function freshState(): GameState {
     gearOwned: [],
     equipped: {},
     levelIndex: 0,
+    maxLevelReached: 0,
     defeated: [],
     achievements: [],
     echoes: 0,
@@ -138,7 +142,7 @@ function freshState(): GameState {
     prestiges: 0,
     finaleDefeated: false,
     finaleAvailable: false,
-    settings: { reduceMotion: false, sound: true },
+    settings: { reduceMotion: false, sound: true, volume: 0.5 },
     buff: null,
     encounter: null,
     playtime: 0,
@@ -149,6 +153,7 @@ function freshState(): GameState {
     perks: [],
     perkTokens: 0,
     pendingPerks: null,
+    pendingLevelUp: false,
     expedition: null,
     deepestAbyss: 0,
     encounterCooldownUntil: 0,
@@ -160,7 +165,7 @@ function load(): GameState {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return freshState();
     const s = JSON.parse(raw) as Partial<GameState>;
-    return {
+    const merged = {
       ...freshState(),
       ...s,
       settings: { ...freshState().settings, ...(s.settings ?? {}) },
@@ -169,8 +174,12 @@ function load(): GameState {
       encounter: null,
       expedition: null,
       pendingPerks: null,
+      pendingLevelUp: false,
       encounterCooldownUntil: 0,
     };
+    // Migrate old saves: ensure maxLevelReached is at least the current levelIndex
+    if (merged.maxLevelReached < merged.levelIndex) merged.maxLevelReached = merged.levelIndex;
+    return merged;
   } catch {
     return freshState();
   }
@@ -196,6 +205,34 @@ export function genCost(s: GameState, id: string): number {
   const g = GENERATORS.find((x) => x.id === id)!;
   const growth = skillBonuses(s).allyCostGrowth;
   return Math.ceil(g.baseCost * Math.pow(growth, owned));
+}
+
+// Total cost of buying `count` generators starting from current owned count
+export function genBulkCost(s: GameState, id: string, count: number): number {
+  const owned = genCount(s, id);
+  const g = GENERATORS.find((x) => x.id === id)!;
+  const growth = skillBonuses(s).allyCostGrowth;
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    total += Math.ceil(g.baseCost * Math.pow(growth, owned + i));
+  }
+  return total;
+}
+
+// How many generators can you afford right now (capped at maxCount)
+export function genMaxAffordable(s: GameState, id: string, maxCount: number = 1000): number {
+  const owned = genCount(s, id);
+  const g = GENERATORS.find((x) => x.id === id)!;
+  const growth = skillBonuses(s).allyCostGrowth;
+  let total = 0;
+  let n = 0;
+  for (let i = 0; i < maxCount; i++) {
+    const cost = Math.ceil(g.baseCost * Math.pow(growth, owned + i));
+    if (total + cost > s.aw) break;
+    total += cost;
+    n++;
+  }
+  return n;
 }
 
 export function levelMult(s: GameState): number {
@@ -448,7 +485,8 @@ export function useGame() {
       if (leveled) {
         if (s.settings.sound) sfx.unlock();
         pushToast('xp', `Explorer Level ${s.xpLevel}!`);
-        if (s.perkTokens > 0 && !s.pendingPerks) s.pendingPerks = rollPerkChoices(3);
+        // Show level-up popup first; perk choices are rolled when the player dismisses it
+        if (s.perkTokens > 0) s.pendingLevelUp = true;
         checkAchievements();
       }
     },
@@ -464,6 +502,7 @@ export function useGame() {
         const gate = levelPrestigeGate(s.levelIndex + 1);
         if (s.prestiges < gate) break;
         s.levelIndex += 1;
+        s.maxLevelReached = Math.max(s.maxLevelReached, s.levelIndex);
         if (s.settings.sound) sfx.descend();
         pushToast('unlock', `Descended to ${nxt.name}`);
         gainXp(20 + s.levelIndex * 6); // descents are big XP milestones
@@ -475,6 +514,24 @@ export function useGame() {
     }
     checkAchievements();
   }, [pushToast, checkAchievements, gainXp]);
+
+  const goToLevel = useCallback(
+    (idx: number) => {
+      const s = stateRef.current;
+      if (idx < 0 || idx > s.maxLevelReached || idx === s.levelIndex) return;
+      s.levelIndex = idx;
+      if (s.settings.sound) sfx.descend();
+      rerender();
+    },
+    [rerender],
+  );
+
+  const dismissLevelUp = useCallback(() => {
+    const s = stateRef.current;
+    s.pendingLevelUp = false;
+    if (s.perkTokens > 0 && !s.pendingPerks) s.pendingPerks = rollPerkChoices(3);
+    rerender();
+  }, [rerender]);
 
   const choosePerk = useCallback(
     (id: string) => {
@@ -866,16 +923,22 @@ export function useGame() {
   }, [rerender]);
 
   const buyGenerator = useCallback(
-    (id: string) => {
+    (id: string, count: number = 1) => {
       const s = stateRef.current;
-      const owned = genCount(s, id);
-      const cost = genCost(s, id);
-      if (s.aw < cost) return;
-      s.aw -= cost;
-      s.generators[id] = owned + 1;
-      if (s.settings.sound) sfx.buy();
-      checkAchievements();
-      rerender();
+      let bought = 0;
+      for (let i = 0; i < count; i++) {
+        const owned = genCount(s, id);
+        const cost = genCost(s, id);
+        if (s.aw < cost) break;
+        s.aw -= cost;
+        s.generators[id] = owned + 1;
+        bought++;
+      }
+      if (bought > 0) {
+        if (s.settings.sound) sfx.buy();
+        checkAchievements();
+        rerender();
+      }
     },
     [checkAchievements, rerender],
   );
@@ -909,6 +972,7 @@ export function useGame() {
     s.totalAw = 0;
     s.generators = {};
     s.levelIndex = 0;
+    s.maxLevelReached = 0;
     s.buff = null;
     s.encounter = null;
     s.expedition = null;
@@ -936,9 +1000,19 @@ export function useGame() {
   }, [rerender]);
 
   const toggleSetting = useCallback(
-    (key: keyof Settings) => {
+    (key: 'sound' | 'reduceMotion') => {
       const s = stateRef.current;
       s.settings[key] = !s.settings[key];
+      rerender();
+    },
+    [rerender],
+  );
+
+  const setVolume = useCallback(
+    (v: number) => {
+      const s = stateRef.current;
+      s.settings.volume = Math.max(0, Math.min(1, v));
+      setSfxVolume(s.settings.volume);
       rerender();
     },
     [rerender],
@@ -1069,10 +1143,13 @@ export function useGame() {
     buyGenerator,
     equipGear,
     prestige,
+    goToLevel,
     unlockSkill,
     toggleSetting,
+    setVolume,
     hardReset,
     choosePerk,
+    dismissLevelUp,
     startExpedition,
     expeditionChoose,
     expeditionDeeper,

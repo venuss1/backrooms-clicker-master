@@ -3,6 +3,8 @@ import {
   useGame,
   genCount,
   genCost,
+  genBulkCost,
+  genMaxAffordable,
   productionPerSec,
   clickPower,
   comboMult,
@@ -55,6 +57,7 @@ export default function App() {
   const s = g.state;
   const [tab, setTab] = useState<Tab>('allies');
   const [gearSlotFilter, setGearSlotFilter] = useState<GearSlot>('Weapon');
+  const [showSettings, setShowSettings] = useState(false);
 
   // Skill tree pan/zoom state
   const [treeZoom, setTreeZoom] = useState(0.5);
@@ -130,11 +133,8 @@ export default function App() {
           </div>
         </div>
         <div className="settings">
-          <button className={`toggle ${s.settings.sound ? 'on' : ''}`} onClick={() => g.toggleSetting('sound')}>
-            {s.settings.sound ? '🔊' : '🔇'}
-          </button>
-          <button className={`toggle ${s.settings.reduceMotion ? 'on' : ''}`} onClick={() => g.toggleSetting('reduceMotion')} title="Reduce motion">
-            {s.settings.reduceMotion ? '🌙' : '✨'}
+          <button className="toggle on" onClick={() => setShowSettings(true)} title="Settings">
+            {'\u2699'}
           </button>
         </div>
       </header>
@@ -142,11 +142,18 @@ export default function App() {
       <main className="stage">
         <section className="clicker-col">
           <div className="level-card">
-            <span className="depth-tag">Depth {s.levelIndex} · {theme.name}</span>
+            <div className="level-nav">
+              <button className="lvl-nav-btn" onClick={() => g.goToLevel(s.levelIndex - 1)} disabled={s.levelIndex <= 0} title="Go to previous level">{'\u25C0'}</button>
+              <span className="depth-tag">Depth {s.levelIndex} · {theme.name}</span>
+              <button className="lvl-nav-btn" onClick={() => g.goToLevel(s.levelIndex + 1)} disabled={s.levelIndex >= s.maxLevelReached} title="Go to next level">{'\u25B6'}</button>
+            </div>
             <h2>{lvl.name}</h2>
             <p className="level-desc">{lvl.desc}</p>
             <p className="level-hook">▸ {lvl.hook}</p>
             <div className="mult-chip">×{levelMult(s).toFixed(1)} everything at this depth</div>
+            {s.levelIndex < s.maxLevelReached && (
+              <p className="level-back-hint">Exploring a previous depth. Go to Depth {s.maxLevelReached} for the full multiplier.</p>
+            )}
           </div>
 
           <div className="goal">
@@ -251,7 +258,7 @@ export default function App() {
             </div>
           )}
           <nav className="tabs">
-            <button className={tab === 'allies' ? 'active' : ''} onClick={() => setTab('allies')}>Allies</button>
+            <button className={`allies-tab ${tab === 'allies' ? 'active' : ''}`} onClick={() => setTab('allies')}>Allies</button>
             <button className={tab === 'gear' ? 'active' : ''} onClick={() => setTab('gear')}>Gear</button>
             <button className={`delve-tab ${tab === 'delve' ? 'active' : ''}`} onClick={() => setTab('delve')}>Delve</button>
             <button className={tab === 'codex' ? 'active' : ''} onClick={() => setTab('codex')}>Codex</button>
@@ -265,17 +272,41 @@ export default function App() {
                   const owned = genCount(s, gen.id);
                   const locked = i > 0 && genCount(s, GENERATORS[i - 1].id) === 0 && owned === 0;
                   if (locked) return null;
-                  const cost = genCost(s, gen.id);
-                  const afford = s.aw >= cost;
+                  const cost1 = genCost(s, gen.id);
+                  const afford1 = s.aw >= cost1;
+                  const cost2 = genBulkCost(s, gen.id, 2);
+                  const afford2 = s.aw >= cost2;
+                  const cost5 = genBulkCost(s, gen.id, 5);
+                  const afford5 = s.aw >= cost5;
+                  const maxN = genMaxAffordable(s, gen.id);
+                  const costMax = maxN > 0 ? genBulkCost(s, gen.id, maxN) : 0;
+                  const affordMax = maxN > 0;
                   return (
-                    <button key={gen.id} className={`row ${afford ? '' : 'poor'}`} onClick={() => g.buyGenerator(gen.id)} disabled={!afford}>
-                      <div className="row-main">
+                    <div key={gen.id} className={`ally-row ${afford1 ? '' : 'poor'}`}>
+                      <div className="ally-info">
                         <div className="row-title"><span>{gen.name}</span>{owned > 0 && <span className="owned">×{owned}</span>}</div>
                         <p className="row-desc">{gen.hook}</p>
                         <p className="row-prod">+{fmt(gen.baseProd)} AW/s each</p>
                       </div>
-                      <div className="row-cost">{fmt(cost)}</div>
-                    </button>
+                      <div className="ally-buy-btns">
+                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 1)} disabled={!afford1}>
+                          <span className="buy-qty">1</span>
+                          <span className="buy-cost">{fmt(cost1)}</span>
+                        </button>
+                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 2)} disabled={!afford2}>
+                          <span className="buy-qty">2</span>
+                          <span className="buy-cost">{fmt(cost2)}</span>
+                        </button>
+                        <button className="buy-btn" onClick={() => g.buyGenerator(gen.id, 5)} disabled={!afford5}>
+                          <span className="buy-qty">5</span>
+                          <span className="buy-cost">{fmt(cost5)}</span>
+                        </button>
+                        <button className="buy-btn buy-max" onClick={() => g.buyGenerator(gen.id, maxN)} disabled={!affordMax}>
+                          <span className="buy-qty">Max ({maxN})</span>
+                          <span className="buy-cost">{costMax > 0 ? fmt(costMax) : '—'}</span>
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -620,6 +651,21 @@ export default function App() {
         </div>
       )}
 
+      {s.pendingLevelUp && !s.pendingPerks && (
+        <div className="perk-overlay">
+          <div className="levelup-modal">
+            <div className="levelup-glow" />
+            <span className="levelup-star">✦</span>
+            <h2 className="levelup-title">LEVEL UP!</h2>
+            <p className="levelup-sub">Explorer Level {s.xpLevel}</p>
+            {s.perkTokens > 0 && <p className="levelup-perk-hint">You have {s.perkTokens} perk{s.perkTokens > 1 ? 's' : ''} to choose</p>}
+            <button className="levelup-btn" onClick={g.dismissLevelUp}>
+              {s.perkTokens > 0 ? 'Choose Perk' : 'Continue'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {s.pendingPerks && (
         <div className="perk-overlay">
           <div className="perk-modal">
@@ -752,6 +798,48 @@ export default function App() {
       <div className="toasts">
         {g.toasts.map((t) => (<div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>))}
       </div>
+
+      {showSettings && (
+        <div className="perk-overlay" onClick={() => setShowSettings(false)}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Settings</h2>
+            <div className="settings-row">
+              <span className="settings-label">Sound</span>
+              <button className={`toggle ${s.settings.sound ? 'on' : ''}`} onClick={() => g.toggleSetting('sound')}>
+                {s.settings.sound ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            {s.settings.sound && (
+              <div className="settings-row">
+                <span className="settings-label">Volume</span>
+                <div className="volume-slider-wrap">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={Math.round(s.settings.volume * 100)}
+                    onChange={(e) => g.setVolume(Number(e.target.value) / 100)}
+                    className="volume-slider"
+                  />
+                  <span className="volume-val">{Math.round(s.settings.volume * 100)}%</span>
+                </div>
+              </div>
+            )}
+            <div className="settings-row">
+              <span className="settings-label">Reduce Motion</span>
+              <button className={`toggle ${s.settings.reduceMotion ? 'on' : ''}`} onClick={() => g.toggleSetting('reduceMotion')}>
+                {s.settings.reduceMotion ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <div className="settings-row danger-row">
+              <button className="settings-danger" onClick={() => { g.hardReset(); setShowSettings(false); }}>
+                Reset All Progress
+              </button>
+            </div>
+            <button className="settings-close" onClick={() => setShowSettings(false)}>Close</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

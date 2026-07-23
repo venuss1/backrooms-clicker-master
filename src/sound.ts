@@ -1,5 +1,10 @@
 // Tiny WebAudio blips — no assets required. Kept short & quiet for ADHD-friendly feedback.
 let ctx: AudioContext | null = null;
+let masterVolume = 0.5;
+
+export function setSfxVolume(v: number) {
+  masterVolume = Math.max(0, Math.min(1, v));
+}
 
 function ac(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -21,7 +26,7 @@ function play({ freq, dur, type = 'sine', gain = 0.05 }: Tone) {
   const g = c.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  g.gain.setValueAtTime(gain, c.currentTime);
+  g.gain.setValueAtTime(gain * masterVolume, c.currentTime);
   g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
   osc.connect(g);
   g.connect(c.destination);
