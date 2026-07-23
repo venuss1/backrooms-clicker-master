@@ -20,6 +20,8 @@ import {
   allyCount,
   gearBySlot,
   eligibleDrops,
+  gearUpgradeLevel,
+  gearDuplicateCount,
   ACHIEVEMENTS,
   SLOTS,
   xpNeed,
@@ -175,6 +177,7 @@ export default function App() {
   const [wikiTab, setWikiTab] = useState<'items' | 'mechanics' | 'levels' | 'expeditions' | 'skills' | 'perks'>('items');
   const [buyQty, setBuyQty] = useState<1 | 2 | 5 | 'max'>('max');
   const [wikiLevel, setWikiLevel] = useState<number>(-1); // -1 = all levels
+  const [inspectItem, setInspectItem] = useState<string | null>(null);
 
   // Skill tree pan/zoom state
   const [treeZoom, setTreeZoom] = useState(0.4);
@@ -468,6 +471,12 @@ export default function App() {
                           <button className={`gear-btn ${equipped ? 'unequip' : 'equip'}`} onClick={() => g.equipGear(it.id)}>
                             {equipped ? 'Unequip' : 'Equip'}
                           </button>
+                          {gearDuplicateCount(s, it.id) >= 5 && (
+                            <button className="gear-upgrade-btn" onClick={() => g.upgradeGear(it.id)}>
+                              Upgrade (+{gearUpgradeLevel(s, it.id) + 1})
+                            </button>
+                          )}
+                          {gearUpgradeLevel(s, it.id) > 0 && <span className="gear-upgrade-badge">+{gearUpgradeLevel(s, it.id)}</span>}
                         </div>
                       );
                     })}
@@ -1037,6 +1046,7 @@ export default function App() {
                                 <div key={id} className={`gear-reveal-card rar-${gear.rarity}`} style={{ animationDelay: `${i * 0.15}s` }}>
                                   <div className="grc-glow" />
                                   <span className={`grc-rarity-badge rar-badge rar-${gear.rarity}`}>{gear.rarity}</span>
+                                  {s.gearOwned.includes(id) && <span className="grc-dupe-badge">DUPE</span>}
                                   <span className="grc-slot">{gear.slot}</span>
                                   <span className="grc-name">{gear.name}</span>
                                   <div className="grc-stats">
@@ -1074,12 +1084,14 @@ export default function App() {
               )}
             </div>
 
-            {revealGear && (
+            {revealGear && exp.pendingGearReveal && (
               <div className="gear-reveal-overlay" onClick={g.claimGearReveal}>
                 <div className={`gear-reveal-pop rar-${revealGear.rarity}`} onClick={(e) => e.stopPropagation()}>
                   <div className="grp-glow" />
                   <div className="grp-rays" />
-                  <span className="grp-label">ITEM FOUND</span>
+                  <span className={`grp-label ${s.gearOwned.includes(revealGear.id) ? 'grp-dupe' : 'grp-new'}`}>
+                    {s.gearOwned.includes(revealGear.id) ? 'DUPLICATE' : 'NEW ITEM'}
+                  </span>
                   <span className={`grp-rarity rar-badge rar-${revealGear.rarity}`}>{revealGear.rarity}</span>
                   <span className="grp-slot">{revealGear.slot}</span>
                   <h2 className="grp-name">{revealGear.name}</h2>
@@ -1184,7 +1196,7 @@ export default function App() {
                         const owned = s.gearOwned.includes(it.id);
                         const equipped = s.equipped[it.slot] === it.id;
                         return (
-                          <div key={it.id} className={`wiki-item-card rar-${it.rarity} ${owned ? 'owned' : 'undiscovered'}`}>
+                          <div key={it.id} className={`wiki-item-card rar-${it.rarity} ${owned ? 'owned' : 'undiscovered'} ${gearUpgradeLevel(s, it.id) > 0 ? 'upgraded' : ''}`} onClick={() => owned && setInspectItem(it.id)}>
                             <div className="wic-glow" />
                             <div className="wic-rays" />
                             <span className="wic-label">{owned ? (equipped ? 'EQUIPPED' : 'OWNED') : 'UNDISCOVERED'}</span>
@@ -1194,6 +1206,8 @@ export default function App() {
                             <p className="wic-desc">{owned ? it.desc : 'Delve at this depth to find it.'}</p>
                             {owned && <p className="wic-hook">{it.hook}</p>}
                             {equipped && <span className="wic-equipped-badge">Equipped</span>}
+                            {owned && gearUpgradeLevel(s, it.id) > 0 && <span className="wic-upgrade-badge">+{gearUpgradeLevel(s, it.id)}</span>}
+                            {owned && <span className="wic-dupe-count">Dupes: {gearDuplicateCount(s, it.id)}/5</span>}
                           </div>
                         );
                       })}
@@ -1439,6 +1453,60 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {inspectItem && (() => {
+        const it = GEAR.find(g => g.id === inspectItem);
+        if (!it) return null;
+        const upgrade = gearUpgradeLevel(s, it.id);
+        const dupes = gearDuplicateCount(s, it.id);
+        const canUpgrade = dupes >= 5;
+        return (
+          <div className="inspect-overlay" onClick={() => setInspectItem(null)}>
+            <div className="inspect-modal" onClick={e => e.stopPropagation()}>
+              <button className="inspect-close" onClick={() => setInspectItem(null)}>✕</button>
+              <h2 className="inspect-title">{it.name}</h2>
+              <div className="inspect-cards">
+                <div className={`inspect-card rar-${it.rarity}`}>
+                  <div className="ic-glow" />
+                  <span className="ic-label">BASE</span>
+                  <span className={`ic-rarity rar-badge rar-${it.rarity}`}>{it.rarity}</span>
+                  <span className="ic-slot">{it.slot}</span>
+                  <h3 className="ic-name">{it.name}</h3>
+                  <p className="ic-desc">{it.desc}</p>
+                  <div className="ic-stats">
+                    {it.stats.clickMult > 0 && <div>⚡ +{(it.stats.clickMult * 100).toFixed(0)}%</div>}
+                    {it.stats.prodMult > 0 && <div>⚙ +{(it.stats.prodMult * 100).toFixed(0)}%</div>}
+                    {it.stats.luck > 0 && <div>🍀 +{(it.stats.luck * 100).toFixed(0)}%</div>}
+                    {it.stats.crit > 0 && <div>✧ +{(it.stats.crit * 100).toFixed(0)}%</div>}
+                  </div>
+                </div>
+                <div className="inspect-arrow">→</div>
+                <div className={`inspect-card rar-${it.rarity} upgraded`}>
+                  <div className="ic-glow ic-glow-upgraded" />
+                  <span className="ic-label ic-label-upgraded">+{upgrade || 1} UPGRADED</span>
+                  <span className={`ic-rarity rar-badge rar-${it.rarity}`}>{it.rarity}</span>
+                  <span className="ic-slot">{it.slot}</span>
+                  <h3 className="ic-name">{it.name}</h3>
+                  <p className="ic-desc">{it.desc}</p>
+                  <div className="ic-stats">
+                    {it.stats.clickMult > 0 && <div>⚡ +{((it.stats.clickMult * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
+                    {it.stats.prodMult > 0 && <div>⚙ +{((it.stats.prodMult * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
+                    {it.stats.luck > 0 && <div>🍀 +{((it.stats.luck * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
+                    {it.stats.crit > 0 && <div>✧ +{((it.stats.crit * (1 + 0.1 * (upgrade || 1))) * 100).toFixed(0)}%</div>}
+                  </div>
+                </div>
+              </div>
+              <div className="inspect-upgrade-section">
+                <p>Duplicates: {dupes}/5</p>
+                {upgrade > 0 && <p>Current upgrade: +{upgrade} ({10 * upgrade}% better stats)</p>}
+                <button className={`inspect-upgrade-btn ${canUpgrade ? '' : 'disabled'}`} disabled={!canUpgrade} onClick={() => { if (canUpgrade) { g.upgradeGear(it.id); } }}>
+                  {canUpgrade ? `Upgrade (Cost: 5 duplicates)` : `Need ${5 - dupes} more duplicates`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {showSettings && (
         <div className="perk-overlay" onClick={() => setShowSettings(false)}>

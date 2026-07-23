@@ -1409,3 +1409,276 @@
 .set-bonus-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(255,184,77,0.1), rgba(255,184,77,0.04)); border: 1px solid rgba(255,184,77,0.2); }
 .sbb-icon { font-size: 18px; }
 .sbb-text { font-size: 12px; font-weight: 700; color: var(--c-legendary); }
+
+/* ===== Gear Duplicate/Upgrade System ===== */
+
+/* NEW vs DUPLICATE labels on gear reveal popup */
+.grp-label.grp-new {
+  color: #ffd700;
+  text-shadow: 0 0 12px rgba(255,215,0,0.8), 0 0 24px rgba(255,180,0,0.4);
+  animation: grpNewPulse 1s ease-in-out infinite;
+}
+.grp-label.grp-dupe {
+  color: #6bcfff;
+  text-shadow: 0 0 10px rgba(107,207,255,0.6);
+}
+@keyframes grpNewPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* Duplicate badge on gear summary cards */
+.grc-dupe-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #6bcfff;
+  background: rgba(0,20,40,0.85);
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(107,207,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Wiki item card upgrade indicators */
+.wiki-item-card.upgraded {
+  border-color: rgba(255,215,0,0.5) !important;
+  box-shadow: 0 0 20px rgba(255,215,0,0.15) !important;
+}
+.wiki-item-card.upgraded .wic-glow {
+  background: radial-gradient(circle, rgba(255,215,0,0.15), transparent 70%) !important;
+}
+.wic-upgrade-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffd700;
+  background: rgba(20,10,0,0.85);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,215,0,0.5);
+  text-shadow: 0 0 6px rgba(255,215,0,0.5);
+}
+.wic-dupe-count {
+  font-size: 10px;
+  color: rgba(107,207,255,0.7);
+  margin-top: 4px;
+}
+.wiki-item-card {
+  cursor: pointer;
+}
+.wiki-item-card.undiscovered {
+  cursor: default;
+}
+.wiki-item-card.owned:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+/* Item inspection modal */
+.inspect-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade 0.2s;
+}
+.inspect-modal {
+  position: relative;
+  background: rgba(10,8,20,0.95);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 700px;
+  width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.inspect-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.inspect-close:hover { color: #fff; }
+.inspect-title {
+  text-align: center;
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: rgba(255,255,255,0.95);
+}
+.inspect-cards {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.inspect-card {
+  position: relative;
+  width: 240px;
+  min-height: 280px;
+  border-radius: 12px;
+  padding: 20px 16px;
+  background: rgba(15,12,25,0.9);
+  border: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.inspect-card.upgraded {
+  border-color: rgba(255,215,0,0.4);
+  box-shadow: 0 0 30px rgba(255,215,0,0.2), inset 0 0 20px rgba(255,215,0,0.05);
+  animation: inspectUpgradedGlow 2s ease-in-out infinite;
+}
+@keyframes inspectUpgradedGlow {
+  0%, 100% { box-shadow: 0 0 30px rgba(255,215,0,0.2), inset 0 0 20px rgba(255,215,0,0.05); }
+  50% { box-shadow: 0 0 50px rgba(255,215,0,0.35), inset 0 0 30px rgba(255,215,0,0.08); }
+}
+.ic-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.05), transparent 70%);
+  pointer-events: none;
+}
+.ic-glow-upgraded {
+  background: radial-gradient(circle at 50% 30%, rgba(255,215,0,0.12), transparent 70%) !important;
+}
+.ic-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.ic-label-upgraded {
+  color: #ffd700 !important;
+  text-shadow: 0 0 8px rgba(255,215,0,0.5);
+}
+.ic-rarity {
+  margin-bottom: 6px;
+}
+.ic-slot {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+}
+.ic-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 8px;
+}
+.ic-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  flex-grow: 1;
+}
+.ic-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.ic-stats > div {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.05);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.inspect-card.upgraded .ic-stats > div {
+  color: #ffd700;
+  background: rgba(255,215,0,0.08);
+}
+.inspect-arrow {
+  font-size: 28px;
+  color: rgba(255,215,0,0.6);
+  animation: inspectArrowPulse 1.5s ease-in-out infinite;
+}
+@keyframes inspectArrowPulse {
+  0%, 100% { opacity: 0.4; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(4px); }
+}
+.inspect-upgrade-section {
+  text-align: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.inspect-upgrade-section p {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 8px;
+}
+.inspect-upgrade-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,215,0,0.4);
+  background: rgba(255,215,0,0.1);
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.inspect-upgrade-btn:hover:not(.disabled) {
+  background: rgba(255,215,0,0.2);
+  box-shadow: 0 0 16px rgba(255,215,0,0.3);
+}
+.inspect-upgrade-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.03);
+}
+
+/* Gear tab upgrade button and badge */
+.gear-upgrade-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,215,0,0.4);
+  background: rgba(255,215,0,0.1);
+  color: #ffd700;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 6px;
+}
+.gear-upgrade-btn:hover {
+  background: rgba(255,215,0,0.2);
+  box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+.gear-upgrade-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffd700;
+  background: rgba(20,10,0,0.85);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,215,0,0.5);
+  margin-left: 4px;
+  text-shadow: 0 0 4px rgba(255,215,0,0.4);
+}

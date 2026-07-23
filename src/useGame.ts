@@ -73,6 +73,8 @@ export interface GameState {
   clicks: number;
   generators: Record<string, number>;
   gearOwned: string[];
+  gearDuplicates: Record<string, number>; // gearId → count of duplicate copies
+  gearUpgrades: Record<string, number>; // gearId → upgrade level (0=base, 1=+10%, 2=+20%...)
   equipped: Partial<Record<GearSlot, string>>;
   levelIndex: number; // current level the player is exploring
   maxLevelReached: number; // deepest level ever unlocked (for going back)
@@ -147,6 +149,8 @@ function freshState(): GameState {
     clicks: 0,
     generators: {},
     gearOwned: [],
+    gearDuplicates: {},
+    gearUpgrades: {},
     equipped: {},
     levelIndex: 0,
     maxLevelReached: 0,
@@ -188,6 +192,8 @@ function load(): GameState {
       ...s,
       settings: { ...freshState().settings, ...(s.settings ?? {}) },
       skills: s.skills ?? {},
+      gearDuplicates: s.gearDuplicates ?? {},
+      gearUpgrades: s.gearUpgrades ?? {},
       buff: null,
       encounter: null,
       expedition: null,
@@ -381,21 +387,37 @@ function equippedGear(s: GameState): Gear[] {
 export function gearClickMult(s: GameState): number {
   const sb = skillBonuses(s);
   const mult = sb.gearStatMult * (1 + sb.gearStatFromSets * setBonusInfo(s).count);
-  return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.clickMult - 1) * mult), 1);
+  return equippedGear(s).reduce((m, g) => {
+    const upgrade = s.gearUpgrades[g.id] ?? 0;
+    const upgradeBonus = 1 + 0.10 * upgrade;
+    return m * (1 + (g.stats.clickMult * upgradeBonus - 1) * mult);
+  }, 1);
 }
 export function gearProdMult(s: GameState): number {
   const sb = skillBonuses(s);
   const mult = sb.gearStatMult * (1 + sb.gearStatFromSets * setBonusInfo(s).count);
-  return equippedGear(s).reduce((m, g) => m * (1 + (g.stats.prodMult - 1) * mult), 1);
+  return equippedGear(s).reduce((m, g) => {
+    const upgrade = s.gearUpgrades[g.id] ?? 0;
+    const upgradeBonus = 1 + 0.10 * upgrade;
+    return m * (1 + (g.stats.prodMult * upgradeBonus - 1) * mult);
+  }, 1);
 }
 export function gearLuck(s: GameState): number {
   const sb = skillBonuses(s);
   const buffLuck = s.buff?.effect === 'luck' ? 0.15 : 0;
-  return equippedGear(s).reduce((m, g) => m + g.stats.luck * sb.gearStatMult, 0) + buffLuck + perkStat(s, 'luck') + sb.luckAdd;
+  return equippedGear(s).reduce((m, g) => {
+    const upgrade = s.gearUpgrades[g.id] ?? 0;
+    const upgradeBonus = 1 + 0.10 * upgrade;
+    return m + g.stats.luck * upgradeBonus * sb.gearStatMult;
+  }, 0) + buffLuck + perkStat(s, 'luck') + sb.luckAdd;
 }
 export function gearCrit(s: GameState): number {
   const sb = skillBonuses(s);
-  return Math.min(0.75, equippedGear(s).reduce((m, g) => m + g.stats.crit * sb.gearStatMult, 0) + perkStat(s, 'crit') + sb.critAdd);
+  return Math.min(0.75, equippedGear(s).reduce((m, g) => {
+    const upgrade = s.gearUpgrades[g.id] ?? 0;
+    const upgradeBonus = 1 + 0.10 * upgrade;
+    return m + g.stats.crit * upgradeBonus * sb.gearStatMult;
+  }, 0) + perkStat(s, 'crit') + sb.critAdd);
 }
 
 export function critMultVal(s: GameState): number {
@@ -474,9 +496,19 @@ export function gearBySlot(slot: GearSlot): Gear[] {
   return GEAR.filter((g) => g.slot === slot);
 }
 
-// Gear you can currently find at this level (not yet owned)
+// Gear you can currently find at this level (duplicates CAN drop)
 export function eligibleDrops(s: GameState): Gear[] {
-  return GEAR.filter((g) => g.levelIndex === s.levelIndex && !s.gearOwned.includes(g.id));
+  return GEAR.filter((g) => g.levelIndex === s.levelIndex);
+}
+
+// Upgrade level for a owned gear item (0 = base, 1 = +10%, 2 = +20%...)
+export function gearUpgradeLevel(s: GameState, gearId: string): number {
+  return s.gearUpgrades[gearId] ?? 0;
+}
+
+// Number of duplicate copies collected for a gear item
+export function gearDuplicateCount(s: GameState, gearId: string): number {
+  return s.gearDuplicates[gearId] ?? 0;
 }
 
 // ---------- Floating click numbers ----------
@@ -816,18 +848,17 @@ export function useGame() {
       const addRisk = (v: number) => { exp.risk = Math.min(0.9, exp.risk + v * (1 - Math.min(0.6, expBonus)) * mod.riskMult); };
 
       // Level-based gear pool: items only drop at their assigned level (exp.depth)
+      // Duplicates are allowed — when a gear is already owned, it becomes a duplicate.
       const grantExpGear = (force: boolean = false): string | null => {
-        const owned = new Set([...s.gearOwned, ...exp.haulGear]);
         const sb = skillBonuses(s);
         let pool = GEAR.filter((g) => {
-          if (owned.has(g.id)) return false;
           if (g.levelIndex !== exp.depth) return false;
           if (g.abyssOnly && exp.mode !== 'abyss') return false;
           return true;
         });
         if (pool.length === 0) {
-          // Fallback: any unowned gear at this level (ignoring abyssOnly)
-          pool = GEAR.filter((g) => !owned.has(g.id) && g.levelIndex === exp.depth);
+          // Fallback: any gear at this level (ignoring abyssOnly)
+          pool = GEAR.filter((g) => g.levelIndex === exp.depth);
         }
         if (pool.length === 0) return null;
         const pk = weightedGearPick(pool, sb.rarityShift + (force ? 2 : 0));
@@ -864,7 +895,13 @@ export function useGame() {
           exp.lastText = 'You retreat from the guardian, hauling what you have.';
           if (s.settings.sound) sfx.win();
           s.aw += exp.haulAw; s.totalAw += exp.haulAw; s.lifetimeAw += exp.haulAw;
-          for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
+          for (const id of exp.haulGear) {
+            if (!s.gearOwned.includes(id)) {
+              s.gearOwned.push(id);
+            } else {
+              s.gearDuplicates[id] = (s.gearDuplicates[id] ?? 0) + 1;
+            }
+          }
           gainXp(exp.haulXp * sb.expeditionXpMult);
           rerender();
           return;
@@ -1114,7 +1151,13 @@ export function useGame() {
     s.aw += exp.haulAw;
     s.totalAw += exp.haulAw;
     s.lifetimeAw += exp.haulAw;
-    for (const id of exp.haulGear) if (!s.gearOwned.includes(id)) s.gearOwned.push(id);
+    for (const id of exp.haulGear) {
+      if (!s.gearOwned.includes(id)) {
+        s.gearOwned.push(id);
+      } else {
+        s.gearDuplicates[id] = (s.gearDuplicates[id] ?? 0) + 1;
+      }
+    }
     gainXp(exp.haulXp * sb.expeditionXpMult);
     if (exp.mode === 'abyss' && exp.room > s.deepestAbyss) s.deepestAbyss = exp.room;
     if (!s.achievements.includes('delve-1')) {
@@ -1176,6 +1219,19 @@ export function useGame() {
     [checkAchievements, rerender],
   );
 
+  // Spend 5 duplicates of a gear item to raise its upgrade level by 1 (+10% stats)
+  const upgradeGear = useCallback((id: string) => {
+    const s = stateRef.current;
+    if (!s.gearOwned.includes(id)) return;
+    const dupes = s.gearDuplicates[id] ?? 0;
+    if (dupes < 5) return;
+    s.gearDuplicates[id] -= 5;
+    s.gearUpgrades[id] = (s.gearUpgrades[id] ?? 0) + 1;
+    if (s.settings.sound) sfx.loot();
+    pushToast('loot', `${GEAR.find(g => g.id === id)?.name} upgraded to +${s.gearUpgrades[id]}! Stats +${10 * s.gearUpgrades[id]}%`);
+    rerender();
+  }, [pushToast, rerender]);
+
   const prestige = useCallback(() => {
     const s = stateRef.current;
     const gain = pendingEchoes(s);
@@ -1197,8 +1253,14 @@ export function useGame() {
     s.searchProgress = 0;
     s.searchLevel = 0;
     s.encounterCooldownUntil = 0;
+    s.perks = [];
+    s.perkTokens = 0;
+    s.pendingPerks = null;
+    s.pendingLevelUp = false;
+    s.xp = 0;
+    s.xpLevel = 1;
     comboRef.current = 0;
-    // XP, perks, Explorer level, deepest Abyss, skills all persist through rebirth
+    // Skills, echoes, gear, deepest Abyss persist through rebirth
     if (s.settings.sound) sfx.prestige();
     pushToast('prestige', `Noclip Out! +${gain} Echoes (total ${s.totalEchoes})`);
     checkAchievements();
@@ -1420,6 +1482,7 @@ export function useGame() {
     startFinale,
     buyGenerator,
     equipGear,
+    upgradeGear,
     prestige,
     goToLevel,
     unlockSkill,
